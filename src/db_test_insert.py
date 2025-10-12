@@ -1,18 +1,10 @@
 import psycopg2
 import json
 from psycopg2.extras import RealDictCursor
-
-# DB credentials -- change if you used different names
-DB_CONF = {
-    "dbname": "domenai",
-    "user": "domenai",
-    "password": "larakniaukialiauliauliau",
-    "host": "localhost",
-    "port": 5432
-}
+from config import get_db_connect_kwargs
 
 def main():
-    conn = psycopg2.connect(**DB_CONF)
+    conn = psycopg2.connect(**get_db_connect_kwargs())
     cur = conn.cursor()
 
     # ensure domain exists
