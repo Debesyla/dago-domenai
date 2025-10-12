@@ -1,0 +1,6 @@
+# Minimal, cross-platform app dependencies for local/server development
+
+psycopg2-binary==2.9.11
+python-dotenv==1.1.1
+requests==2.31.0
+rich==13.7.1
