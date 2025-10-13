@@ -1,6 +1,19 @@
 # Minimal, cross-platform app dependencies for local/server development
 
+# Database
 psycopg2-binary==2.9.11
+
+# Configuration
 python-dotenv==1.1.1
+pyyaml==6.0.2
+
+# HTTP & Async
+aiohttp==3.10.11
 requests==2.31.0
+
+# CLI & Output
 rich==13.7.1
+
+# Testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
