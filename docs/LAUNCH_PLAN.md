@@ -181,6 +181,104 @@ git push origin main --tags
 
 ---
 
+## 🟢 Version 0.8 — Check Process Optimization
+
+### 🎯 Goal
+Optimize check process by implementing early bailout logic - only run expensive checks if domain is registered and active.
+
+### 📋 Tasks
+1. Update database schema:
+   - Add `is_registered` (BOOLEAN) to `domains` table
+   - Add `is_active` (BOOLEAN) to `domains` table
+   - Run migration SQL script
+
+2. Add placeholder checks:
+   - Create `checks/whois_check.py` (placeholder for v0.8.1)
+   - Create `checks/active_check.py` (placeholder for v0.8.2)
+
+3. Update orchestrator logic:
+   - Run whois check first to determine `is_registered`
+   - If NOT registered → skip all other checks, save result
+   - If registered → run active check to determine `is_active`
+   - If NOT active → skip remaining checks, save result
+   - If active → run full check suite (status, redirect, robots, sitemap, ssl)
+
+4. Update database functions:
+   - Modify `get_or_create_domain()` to handle new fields
+   - Update domain flags after checks complete
+
+### 🧪 Validation
+- Unregistered domains skip all checks
+- Inactive domains only run registration + active checks
+- Active domains run full check suite
+- Database correctly stores `is_registered` and `is_active` flags
+- Significant performance improvement on domains lists with inactive/unregistered domains
+
+### 📦 Tag
+```bash
+git commit -m "v0.8 - check process optimization with early bailout"
+git tag v0.8
+git push origin main --tags
+```
+
+---
+
+## 🟢 Version 0.8.1 — Real WHOIS Check
+
+### 🎯 Goal
+Replace placeholder whois check with actual WHOIS lookup.
+
+### 📋 Tasks
+1. Install `python-whois` or use socket-based WHOIS queries
+2. Implement real `whois_check.py`:
+   - Query WHOIS servers
+   - Parse registration status
+   - Extract expiration date, registrar info
+   - Return: `registered`, `registrar`, `expires_at`, `error`
+
+### 🧪 Validation
+- Correctly identifies registered vs unregistered domains
+- Returns registrar and expiration info for registered domains
+
+### 📦 Tag
+```bash
+git commit -m "v0.8.1 - real WHOIS check implementation"
+git tag v0.8.1
+```
+
+---
+
+## 🟢 Version 0.8.2 — Real Active Status Check
+
+### 🎯 Goal
+Replace placeholder active check with intelligent activity detection.
+
+### 📋 Tasks
+1. Implement real `active_check.py`:
+   - Combine status check + redirect check results
+   - Domain is ACTIVE if:
+     - Returns 2xx status code AND doesn't redirect to different domain, OR
+     - Redirects to same domain (www variant, https upgrade)
+   - Domain is INACTIVE if:
+     - Redirects to completely different domain
+     - Returns 404, 403, 5xx errors
+     - Times out or has connection errors
+   - Return: `active`, `reason`, `final_domain`, `error`
+
+### 🧪 Validation
+- Correctly identifies parked domains (inactive)
+- Correctly identifies redirect domains like gyvigali.lt → augalyn.lt (inactive)
+- Correctly identifies working sites as active
+- Correctly identifies domains with SSL issues as inactive
+
+### 📦 Tag
+```bash
+git commit -m "v0.8.2 - intelligent active status detection"
+git tag v0.8.2
+```
+
+---
+
 ## 🟢 Version 1.0 — Tests and Final Polish (Basic Launch)
 
 ### 🎯 Goal
