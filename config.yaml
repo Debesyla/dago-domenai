@@ -5,6 +5,7 @@ debug: true
 database:
   # Default Postgres connection (override with DATABASE_URL in .env)
   postgres_url: "postgresql://domenai:password@localhost:5432/domenai"
+  save_results: true  # Enable/disable database persistence
 
 logging:
   level: INFO

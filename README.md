@@ -1,8 +1,100 @@
 # Domain Analyzer
 
-A modular, async-first backend for analyzing websites and domains — running multiple independent checks (status, redirects, robots.txt, sitemap, SSL, DNS) and storing structured JSON results.
+A modular, async-first backend for analyzing websites and domains — running multiple independent checks (status, redirects, robots.txt, sitemap, SSL, DNS) and storing structured JSON results in PostgreSQL.
 
-## Version 0.5 — All Base Checks ✅
+## Version 0.6 — Database Persistence ✅
+
+### What's New in v0.6
+- ✅ **Database Module** (`src/utils/db.py`)
+  - PostgreSQL connection with context managers
+  - Automatic domain and task creation
+  - Result persistence after each scan
+  - Query functions for retrieving historical data
+  
+- ✅ **Orchestrator Integration**
+  - Automatic saving to database after each domain scan
+  - Configurable persistence (can be disabled)
+  - Graceful handling of database errors
+  
+- ✅ **Query Utilities**
+  - `test_db.py` - Database connection testing
+  - `query_db.py` - CLI tool for querying results
+    - `stats` - Database statistics
+    - `domains` - List all domains
+    - `latest` - Show recent results
+    - `domain <name>` - Show details for specific domain
+  
+- ✅ **Database Functions**
+  - `init_db()` - Verify database connection
+  - `save_result()` - Persist domain analysis
+  - `get_domains()` - List all domains
+  - `get_domain_results()` - Get history for domain
+  - `get_latest_results()` - Recent results across all domains
+  - `get_stats()` - Database statistics
+
+### Database Schema
+
+The system uses three main tables:
+- **domains** - Tracked domains with timestamps
+- **tasks** - Task definitions (e.g., 'basic-scan')
+- **results** - Analysis results stored as JSONB
+
+### Usage
+
+```bash
+# Run analysis (automatically saves to database)
+python -m src.orchestrator domains.txt
+
+# Query database statistics
+python query_db.py stats
+
+# List all domains
+python query_db.py domains
+
+# Show latest results
+python query_db.py latest
+
+# Show details for specific domain
+python query_db.py domain gyvigali.lt
+
+# Test database connection
+python test_db.py
+```
+
+### Example Query Output
+
+```
+📊 Database Statistics:
+  Total Domains: 6
+  Total Results: 10
+  Results by Status:
+    - success: 9
+    - partial: 1
+
+🔍 Results for: gyvigali.lt
+  Grade: A
+  HTTPS: True
+  Reachable: True
+  Checks:
+    - status: 200 (211ms)
+    - redirects: 1 redirects
+    - ssl: Let's Encrypt, expires in 48 days
+    - robots: ✅
+    - sitemap: ✅
+```
+
+### Files Added/Modified in v0.6
+- `src/utils/db.py` — Database module with connection pooling
+- `src/orchestrator.py` — Integrated database persistence
+- `config.yaml` — Added `save_results` flag
+- `test_db.py` — Database testing utility
+- `query_db.py` — Database query CLI tool
+
+---
+
+## Version History
+
+### Version 0.5 — All Base Checks ✅
 
 ### What's New in v0.5
 - ✅ **Redirect Check** (`src/checks/redirect_check.py`)

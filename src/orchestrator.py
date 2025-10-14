@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import List, Dict, Any
 
-from src.utils.config import load_config, get_logging_config
+from src.utils.config import load_config, get_logging_config, get_database_config
 from src.utils.logger import setup_logger
 from src.core.schema import new_domain_result, update_result_meta, add_check_result, update_summary
 from src.checks.status_check import run_status_check
@@ -13,6 +13,7 @@ from src.checks.redirect_check import run_redirect_check
 from src.checks.robots_check import run_robots_check
 from src.checks.sitemap_check import run_sitemap_check
 from src.checks.ssl_check import run_ssl_check
+from src.utils.db import save_result, init_db
 
 
 async def process_domain(domain: str, config: dict, logger) -> dict:
@@ -109,12 +110,31 @@ async def process_domains(domains: List[str], config: Dict[str, Any]) -> List[Di
     log_config = get_logging_config(config)
     logger = setup_logger(**log_config)
     
+    # Get database configuration
+    db_config = get_database_config(config)
+    db_url = db_config.get('postgres_url')
+    save_to_db = db_config.get('save_results', True)
+    
+    # Initialize database if saving is enabled
+    if save_to_db and db_url:
+        if not init_db(db_url):
+            logger.warning("Database initialization failed, continuing without persistence")
+            save_to_db = False
+    
     logger.info(f"Processing {len(domains)} domains")
     
     results = []
     for domain in domains:
         result = await process_domain(domain, config, logger)
         results.append(result)
+        
+        # Save to database if enabled
+        if save_to_db and db_url:
+            task = result.get('meta', {}).get('task', 'basic-scan')
+            if save_result(db_url, domain, task, result):
+                logger.debug(f"Saved result for {domain} to database")
+            else:
+                logger.warning(f"Failed to save result for {domain}")
     
     return results
 
