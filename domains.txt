@@ -1,0 +1,5 @@
+# Test domains for v0.3 orchestrator
+example.com
+google.com
+test.lt
+github.com
