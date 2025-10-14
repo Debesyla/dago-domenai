@@ -279,6 +279,69 @@ git tag v0.8.2
 
 ---
 
+## 🟢 Version 0.9 — Smart Redirect Capture
+
+### 🎯 Goal
+Automatically discover and add new Lithuanian domains when they appear as redirect targets, intelligently growing the domain database.
+
+### 📋 Tasks
+1. Implement redirect capture logic:
+   - After redirect check completes, analyze `final_url`
+   - If domain redirected to different .lt domain → capture it
+   - Extract main domain (handle subdomains intelligently)
+   - Check if new domain already exists in database
+   - If not → add to database for future scanning
+
+2. Smart subdomain handling:
+   - **Keep subdomains** for: `.gov.lt`, `.lrv.lt` (government sites)
+     - Example: `stat.gov.lt` ≠ `strata.gov.lt` (both important)
+   - **Strip subdomains** for other TLDs:
+     - `ideas.dago.lt` → add only `dago.lt`
+     - `www.example.lt` → add only `example.lt`
+   - Configurable whitelist for other special cases
+
+3. Domain extraction utility:
+   - Create `utils/domain_utils.py`
+   - Function: `extract_main_domain(url, keep_subdomain_patterns)`
+   - Function: `is_lithuanian_domain(domain)`
+   - Function: `should_capture_domain(source_domain, target_domain)`
+
+4. Configuration:
+   - Add to `config.yaml`:
+     ```yaml
+     redirect_capture:
+       enabled: true
+       target_tlds: ['.lt']  # Only capture Lithuanian domains
+       keep_subdomains_for: ['.gov.lt', '.lrv.lt']
+       ignore_common_services: ['google.lt', 'facebook.com', 'youtube.com']
+     ```
+
+5. Database function:
+   - Add `add_discovered_domain(domain, discovered_from, discovery_reason)`
+   - Track where domain was discovered from for analytics
+
+### 🧪 Validation
+- `gyvigali.lt` → `augalyn.lt` redirect adds `augalyn.lt` to database
+- `ideas.dago.lt` → extracts and adds only `dago.lt`
+- `stat.gov.lt` → keeps full domain (government exception)
+- Domains already in database are not duplicated
+- Discovery tracking shows which domains led to new discoveries
+
+### 📊 Expected Impact
+With 1000 domains analyzed:
+- ~10-20% redirect to other .lt domains
+- Could discover 100-200 new domains automatically
+- Creates organic database growth through network effect
+
+### 📦 Tag
+```bash
+git commit -m "v0.9 - smart redirect capture for domain discovery"
+git tag v0.9
+git push origin main --tags
+```
+
+---
+
 ## 🟢 Version 1.0 — Tests and Final Polish (Basic Launch)
 
 ### 🎯 Goal
