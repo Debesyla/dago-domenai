@@ -2,48 +2,80 @@
 
 A modular, async-first backend for analyzing websites and domains — running multiple independent checks (status, redirects, robots.txt, sitemap, SSL, DNS) and storing structured JSON results.
 
-## Version 0.4 — First Real Check (HTTP Status) ✅
+## Version 0.5 — All Base Checks ✅
 
-### What's New in v0.4
-- ✅ **HTTP Status Check** (`src/checks/status_check.py`)
-  - Fetches HTTP status code using aiohttp
-  - Returns: code, ok, final_url, duration_ms
-  - Handles timeouts and connection errors gracefully
-- ✅ **Orchestrator Integration**
-  - Calls status_check for each domain
-  - Tracks execution time and error handling
-  - Updates result metadata and summary
-- ✅ **Enhanced Error Handling**
-  - SSL/certificate errors detected
-  - Connection errors reported
-  - Graceful degradation on failures
+### What's New in v0.5
+- ✅ **Redirect Check** (`src/checks/redirect_check.py`)
+  - Follows redirect chain up to max_hops
+  - Returns: chain, length, final_url
+  - Detects 301, 302, 303, 307, 308 redirects
+  
+- ✅ **Robots.txt Check** (`src/checks/robots_check.py`)
+  - Fetches and parses robots.txt
+  - Returns: found, allow, disallow, valid
+  - Lists all Allow/Disallow rules
+  
+- ✅ **Sitemap Check** (`src/checks/sitemap_check.py`)
+  - Searches for sitemap.xml in common locations
+  - Returns: found, url, count_urls, valid
+  - Counts URL entries in sitemap
+  
+- ✅ **SSL Certificate Check** (`src/checks/ssl_check.py`)
+  - Validates SSL certificate
+  - Returns: valid, issuer, days_until_expiry, expires_at
+  - Detects certificate issues and expiration
+
+- ✅ **Enhanced Configuration** (`config.yaml`)
+  - Added settings for all checks
+  - Configurable max_hops for redirects
+  - Enable/disable individual checks
 
 ### Current Features
 
-**Status Check Results:**
+**Complete Check Results:**
 ```json
 {
-  "domain": "example.com",
+  "domain": "gyvigali.lt",
   "meta": {
-    "timestamp": "2025-10-14T12:04:15.649537+00:00",
+    "timestamp": "2025-10-14T12:19:20.985532+00:00",
     "task": "basic-scan",
-    "execution_time_sec": 0.5,
-    "status": "success",
-    "schema_version": "1.0"
+    "execution_time_sec": 1.42,
+    "status": "success"
   },
   "checks": {
     "status": {
       "code": 200,
       "ok": true,
-      "final_url": "https://example.com",
-      "duration_ms": 503
+      "final_url": "https://augalyn.lt/?utm_source=gyvigali",
+      "duration_ms": 408
+    },
+    "redirects": {
+      "chain": ["https://gyvigali.lt", "https://augalyn.lt/?utm_source=gyvigali"],
+      "length": 1,
+      "final_url": "https://augalyn.lt/?utm_source=gyvigali"
+    },
+    "robots": {
+      "found": true,
+      "allow": ["/wp-admin/admin-ajax.php"],
+      "disallow": ["/wp-admin/", ...],
+      "valid": true
+    },
+    "sitemap": {
+      "found": true,
+      "url": "https://gyvigali.lt/sitemap.xml",
+      "count_urls": 9,
+      "valid": true
+    },
+    "ssl": {
+      "valid": true,
+      "issuer": "Let's Encrypt",
+      "days_until_expiry": 49,
+      "expires_at": "2025-12-02T13:00:02+00:00"
     }
   },
   "summary": {
     "reachable": true,
     "https": true,
-    "issues": 0,
-    "warnings": 0,
     "grade": "A"
   }
 }
@@ -57,18 +89,25 @@ python -m src.orchestrator domains.txt
 
 # Analyze a single domain
 python -m src.orchestrator --domain example.com
+
+# Test specific domain with JSON output
+python test_v05.py gyvigali.lt
 ```
 
-### Files Added/Modified in v0.4
-- `src/checks/status_check.py` — HTTP status check with aiohttp
-- `src/orchestrator.py` — Updated to integrate status_check
-- `src/core/schema.py` — Fixed None handling for failed checks
+### Files Added/Modified in v0.5
+- `src/checks/redirect_check.py` — Redirect chain tracking
+- `src/checks/robots_check.py` — Robots.txt parser
+- `src/checks/sitemap_check.py` — Sitemap.xml finder
+- `src/checks/ssl_check.py` — SSL certificate validator
+- `src/orchestrator.py` — Integrated all checks with enable/disable
+- `config.yaml` — Added configuration for all checks
+- `domains.txt` — Added gyvigali.lt and debesyla.lt test domains
 
 ---
 
 ## Version History
 
-### Version 0.3 — Orchestrator ✅
+### Version 0.4 — First Real Check (HTTP Status) ✅
 
 ### What's Done
 - ✅ Git repository initialized
@@ -158,22 +197,18 @@ See `docs/LOCAL_SETUP.md` for full macOS setup instructions.
 
 Following **LAUNCH_PLAN.md** incrementally:
 
-**v0.5 — Additional Checks**
-- Add redirect check (follow chain)
-- Add robots.txt check
-- Add sitemap.xml check
-- Add SSL/TLS certificate check
-- Test: All checks return structured data
-
 **v0.6 — Database Persistence**
-- Save results to PostgreSQL
+- Implement `utils/db.py` for PostgreSQL operations
+- Save domain analysis results to database
 - Query and retrieve historical data
+- Add connection pooling
 
 **v0.7+ — Advanced Features**
-- Reporting and exports
-- Comprehensive testing
-- AI-powered insights
-- Dashboard interface
+- Reporting and exports (JSON, CSV)
+- Comprehensive unit testing
+- AI-powered insights and recommendations
+- Web dashboard interface
+- API endpoints
 
 ### Documentation
 
@@ -184,5 +219,5 @@ Following **LAUNCH_PLAN.md** incrementally:
 
 ---
 
-**Status:** v0.4 complete — HTTP status check working! 🚀
+**Status:** v0.5 complete — All base checks implemented! 🚀
 

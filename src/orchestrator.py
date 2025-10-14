@@ -9,6 +9,10 @@ from src.utils.config import load_config, get_logging_config
 from src.utils.logger import setup_logger
 from src.core.schema import new_domain_result, update_result_meta, add_check_result, update_summary
 from src.checks.status_check import run_status_check
+from src.checks.redirect_check import run_redirect_check
+from src.checks.robots_check import run_robots_check
+from src.checks.sitemap_check import run_sitemap_check
+from src.checks.ssl_check import run_ssl_check
 
 
 async def process_domain(domain: str, config: dict, logger) -> dict:
@@ -33,21 +37,53 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     result = new_domain_result(domain, task)
     
     errors = []
+    checks_config = config.get('checks', {})
     
-    # Run status check
-    status_result = await run_status_check(domain, config)
-    add_check_result(result, 'status', status_result)
+    # Run all enabled checks
     
-    # Check if status check had errors
-    if 'error' in status_result:
-        errors.append(f"status: {status_result['error']}")
+    # 1. Status check
+    if checks_config.get('status', {}).get('enabled', True):
+        status_result = await run_status_check(domain, config)
+        add_check_result(result, 'status', status_result)
+        if 'error' in status_result:
+            errors.append(f"status: {status_result['error']}")
+    
+    # 2. Redirect check
+    if checks_config.get('redirect', {}).get('enabled', True):
+        redirect_result = await run_redirect_check(domain, config)
+        add_check_result(result, 'redirects', redirect_result)
+        if 'error' in redirect_result:
+            errors.append(f"redirects: {redirect_result['error']}")
+    
+    # 3. Robots.txt check
+    if checks_config.get('robots', {}).get('enabled', True):
+        robots_result = await run_robots_check(domain, config)
+        add_check_result(result, 'robots', robots_result)
+        if 'error' in robots_result:
+            errors.append(f"robots: {robots_result['error']}")
+    
+    # 4. Sitemap check
+    if checks_config.get('sitemap', {}).get('enabled', True):
+        sitemap_result = await run_sitemap_check(domain, config)
+        add_check_result(result, 'sitemap', sitemap_result)
+        if 'error' in sitemap_result:
+            errors.append(f"sitemap: {sitemap_result['error']}")
+    
+    # 5. SSL check
+    if checks_config.get('ssl', {}).get('enabled', True):
+        ssl_result = await run_ssl_check(domain, config)
+        add_check_result(result, 'ssl', ssl_result)
+        if 'error' in ssl_result:
+            errors.append(f"ssl: {ssl_result['error']}")
     
     # Calculate execution time
     execution_time = time.time() - start_time
     
     # Determine overall status
     if errors:
-        status = 'error' if len(errors) == 1 else 'partial'
+        # If all checks failed, it's an error; otherwise partial success
+        total_checks = sum(1 for check in checks_config.values() if isinstance(check, dict) and check.get('enabled', True))
+        status = 'error' if len(errors) == total_checks else 'partial'
     else:
         status = 'success'
     

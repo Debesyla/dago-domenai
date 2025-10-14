@@ -3,3 +3,5 @@ example.com
 google.com
 test.lt
 github.com
+gyvigali.lt
+debesyla.lt

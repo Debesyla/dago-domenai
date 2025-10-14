@@ -12,8 +12,19 @@ logging:
 
 network:
   user_agent: DomainAnalyzerBot/1.0
-  request_timeout: 5
+  request_timeout: 10
+  follow_redirects: true
+  verify_ssl: true
 
 checks:
   status:
+    enabled: true
+  redirect:
+    enabled: true
+    max_hops: 10
+  robots:
+    enabled: true
+  sitemap:
+    enabled: true
+  ssl:
     enabled: true
