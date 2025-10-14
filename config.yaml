@@ -1,0 +1,19 @@
+# Configuration for dago-domenai
+env: development
+debug: true
+
+database:
+  # Default Postgres connection (override with DATABASE_URL in .env)
+  postgres_url: "postgresql://domenai:password@localhost:5432/domenai"
+
+logging:
+  level: INFO
+  log_dir: ./logs
+
+network:
+  user_agent: DomainAnalyzerBot/1.0
+  request_timeout: 5
+
+checks:
+  status:
+    enabled: true
