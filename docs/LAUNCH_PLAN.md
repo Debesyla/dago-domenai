@@ -342,6 +342,399 @@ git push origin main --tags
 
 ---
 
+## 🟢 Version 0.10 — Composable Profile System
+
+### 🎯 Goal
+Restructure the task system to use **composable, data-source-based profiles** instead of rigid scan tiers. Enable users to mix and match profiles for custom analysis strategies.
+
+### 📋 Problem Statement
+Current state:
+- Task names are generic (`check_status` vs `basic-scan`)
+- Inefficient: `full-scan` re-queries same data sources as `basic-scan`
+- Not flexible: Can't get "just DNS data" or "just SSL info"
+- Adding new checks requires restructuring all task definitions
+
+### 🎯 Solution: Composable Profiles Organized by Data Source
+Organize profiles by what they query, not by scan depth:
+- **Core Data Profiles**: Make external API calls (`whois`, `dns`, `http`, `ssl`)
+- **Analysis Profiles**: Process core data without additional calls (`headers`, `content`, `infrastructure`)
+- **Intelligence Profiles**: Business insights (`security`, `business`, `language`, `clustering`)
+- **Meta Profiles**: Pre-configured combinations (`quick-check`, `standard`, `complete`)
+
+**Key Innovation**: One DNS query returns A, AAAA, MX, NS, TXT records together. Users combine profiles as needed.
+
+### 📋 Tasks
+
+#### 1. Review Composable Profile Matrix
+**Reference:** See `docs/TASK_MATRIX.md` for complete profile definitions.
+
+The system now has **22 profiles** in 4 categories:
+
+**🔵 Core Data (4 profiles):**
+- `whois` - Registration data (1 API call)
+- `dns` - All DNS records (1 query set)
+- `http` - Connectivity and redirects (1-2 requests)
+- `ssl` - Certificate analysis (1 handshake)
+
+**🟢 Analysis (5 profiles):**
+- `headers` - HTTP headers (depends on `http`)
+- `content` - On-page content (depends on `http`)
+- `infrastructure` - Hosting analysis (depends on `dns`, `http`)
+- `technology` - Tech stack detection (depends on `http`, `content`)
+- `seo` - SEO checks (depends on `http`, `content`)
+
+**🟡 Intelligence (7 profiles):**
+- `security` - Vulnerability scans
+- `compliance` - GDPR, privacy
+- `business` - Company info
+- `language` - Language detection
+- `fingerprinting` - Visual analysis
+- `clustering` - Portfolio detection
+
+**🟠 Meta (6 profiles):**
+- `quick-check` - Fast filtering
+- `standard` - General analysis
+- `technical-audit` - Security focus
+- `business-research` - Market intelligence
+- `complete` - Everything
+- `monitor` - Change tracking
+
+#### 2. Create Migration Script
+- File: `db/migrations/v0.10_composable_profiles.sql`
+- Clean existing task-based data
+- Document new profile system
+
+```sql
+-- Clear old task-based system
+DELETE FROM results WHERE TRUE;  -- Fresh start with new system
+DELETE FROM tasks;
+
+-- Note: Profiles are now defined in config.yaml, not in database
+-- The tasks table can be repurposed or removed in future versions
+
+-- Reset domains for re-scanning with new profile system
+UPDATE domains SET updated_at = NULL, is_registered = NULL, is_active = NULL;
+```
+
+#### 3. Update Result Schema
+Enhance metadata to track which profiles were used:
+
+```json
+{
+  "domain": "example.com",
+  "meta": {
+    "timestamp": "2025-10-14T12:00:00Z",
+    "profiles": ["dns", "ssl", "http"],
+    "checks_performed": ["dns_a_record", "dns_mx_records", "ssl_expiration", "http_status"],
+    "dependencies_resolved": {
+      "dns": "completed",
+      "ssl": "completed",
+      "http": "completed"
+    },
+    "execution_time_sec": 2.8,
+    "status": "success",
+    "schema_version": "2.0"
+  },
+  "profiles": {
+    "dns": {
+      "a_records": ["93.184.216.34"],
+      "mx_records": [...],
+      "txt_records": [...]
+    },
+    "ssl": {
+      "expiration_date": "2026-03-01",
+      "issuer": "DigiCert"
+    },
+    "http": {
+      "status_code": 200,
+      "redirect_chain": []
+    }
+  }
+}
+```
+
+#### 4. Update Orchestrator
+Implement profile composition logic:
+
+```python
+# Pseudocode for v0.10 orchestrator
+
+class ProfileOrchestrator:
+    def __init__(self, config):
+        self.profile_definitions = config['profiles']
+        self.meta_profiles = config['meta_profiles']
+        
+    def resolve_profiles(self, requested_profiles: List[str]) -> Dict:
+        """Resolve profile dependencies and execution order"""
+        resolved = {}
+        
+        # Expand meta profiles
+        expanded = self.expand_meta_profiles(requested_profiles)
+        
+        # Build dependency graph
+        for profile in expanded:
+            deps = self.profile_definitions[profile].get('depends_on', [])
+            resolved[profile] = {
+                'dependencies': deps,
+                'checks': self.profile_definitions[profile]['checks']
+            }
+        
+        # Topological sort for execution order
+        execution_order = self.topological_sort(resolved)
+        return execution_order
+    
+    async def process_domain(self, domain: str, profiles: List[str]):
+        """Run checks for requested profiles"""
+        execution_plan = self.resolve_profiles(profiles)
+        results = {'profiles': {}}
+        
+        # Run profiles in dependency order
+        for profile in execution_plan:
+            profile_result = await self.run_profile(domain, profile, results)
+            results['profiles'][profile] = profile_result
+        
+        # Record metadata
+        results['meta'] = {
+            'profiles': profiles,
+            'checks_performed': self.extract_checks(results),
+            'execution_time_sec': ...,
+        }
+        
+        return results
+```
+
+#### 5. Create Profile Configuration
+Define all profiles in `config.yaml`:
+
+```yaml
+# Core Data Profiles
+profiles:
+  whois:
+    description: "Registration and ownership information"
+    depends_on: []
+    checks:
+      - whois_registration_status
+      - registrar_name
+      - registration_date
+      - expiration_date
+      - registrant_org
+      - privacy_protection
+      - domain_age
+  
+  dns:
+    description: "DNS resolution and records"
+    depends_on: []
+    checks:
+      - dns_a_record
+      - dns_aaaa_record
+      - dns_mx_records
+      - dns_txt_records
+      - dns_ns_records
+      - dns_cname
+  
+  http:
+    description: "HTTP connectivity and behavior"
+    depends_on: []
+    checks:
+      - http_status
+      - redirect_chain
+      - response_time
+      - https_available
+  
+  ssl:
+    description: "SSL/TLS certificate analysis"
+    depends_on: []
+    checks:
+      - ssl_present
+      - ssl_expiration
+      - ssl_issuer
+      - certificate_chain
+
+  # Analysis Profiles (depend on core profiles)
+  headers:
+    description: "Security and technical headers"
+    depends_on: [http]
+    checks:
+      - hsts_header
+      - csp_header
+      - x_content_type_options
+  
+  content:
+    description: "On-page content extraction"
+    depends_on: [http]
+    checks:
+      - html_title
+      - meta_description
+      - page_size
+  
+  infrastructure:
+    description: "Hosting and network infrastructure"
+    depends_on: [dns, http]
+    checks:
+      - ip_geolocation
+      - hosting_provider_asn
+      - cdn_detection
+  
+  seo:
+    description: "SEO-related checks"
+    depends_on: [http, content]
+    checks:
+      - robots_txt
+      - sitemap_xml
+      - structured_data
+
+  # Intelligence Profiles
+  security:
+    description: "Security vulnerability assessment"
+    depends_on: [http, headers, ssl]
+    checks:
+      - exposed_files
+      - security_misconfigurations
+      - blacklist_check
+  
+  business:
+    description: "Business intelligence"
+    depends_on: [http, content]
+    checks:
+      - social_media_links
+      - contact_info
+      - company_codes
+
+# Meta Profiles (combinations)
+meta_profiles:
+  quick-check:
+    includes: [whois]
+    checks: [active_status]  # Custom check
+    description: "Fast filtering"
+  
+  standard:
+    includes: [whois, dns, http, ssl, seo]
+    description: "Standard technical analysis"
+  
+  technical-audit:
+    includes: [whois, dns, http, ssl, headers, infrastructure, security]
+    description: "Complete technical assessment"
+  
+  business-research:
+    includes: [whois, dns, http, ssl, content, business, language, compliance]
+    description: "Market intelligence"
+  
+  complete:
+    includes: [all]
+    description: "Everything available"
+  
+  monitor:
+    includes: [http, ssl]
+    checks: [dns_a_record, html_hash]
+    description: "Lightweight recurring checks"
+```
+
+#### 6. Update CLI
+Support multiple profile selection:
+
+```bash
+# Single profile
+python -m src.orchestrator domains.txt --profiles dns
+
+# Multiple profiles
+python -m src.orchestrator domains.txt --profiles dns,ssl,http
+
+# Meta profile
+python -m src.orchestrator domains.txt --profiles standard
+
+# Mix specific and meta profiles
+python -m src.orchestrator domains.txt --profiles standard,clustering
+```
+
+#### 7. Update Query Tools
+- `query_db.py` should show which profiles were used
+- Filter results by profile combination
+- Show profile-specific data
+
+```bash
+# Query by profiles used
+python query_db.py latest --profiles dns,ssl
+
+# Show profile data
+python query_db.py domain example.com --show-profiles
+
+# List available profiles
+python query_db.py list-profiles
+```
+
+#### 8. Documentation
+Create comprehensive profile documentation:
+
+**`docs/TASK_MATRIX.md`** (Technical)
+- Complete profile definitions with dependencies
+- Check assignments for each profile
+- Implementation status tracking
+
+**`docs/TASK_PROFILES.md`** (User Guide)
+- When to use each profile
+- How to combine profiles
+- Real-world workflow examples
+- Performance characteristics
+
+### 🧪 Validation
+- [ ] Migration clears old task-based data
+- [ ] Config defines all profile categories
+- [ ] Orchestrator resolves profile dependencies correctly
+- [ ] Core profiles can run in parallel
+- [ ] Analysis profiles wait for dependencies
+- [ ] Results include `profiles` and `checks_performed` metadata
+- [ ] CLI accepts `--profiles` parameter with multiple values
+- [ ] Query tools filter by profile combinations
+- [ ] Easy to add new profiles without breaking existing ones
+
+### 📊 Benefits
+- **Performance**: One data source query serves multiple checks
+- **Flexibility**: Users compose exact analysis they need
+- **Maintainability**: Adding checks doesn't break profile structure
+- **Natural**: Mirrors implementation (one DNS query → all records)
+- **Scalable**: Easy to add new profiles or checks
+- **User-Friendly**: Simple combinations like `--profiles dns,ssl`
+
+### 💡 Usage Examples
+
+```bash
+# Fast filtering
+python -m src.orchestrator domains.txt --profiles quick-check
+
+# DNS analysis only
+python -m src.orchestrator domains.txt --profiles dns
+
+# Security audit
+python -m src.orchestrator domains.txt --profiles ssl,headers,security
+
+# Custom combination
+python -m src.orchestrator domains.txt --profiles dns,infrastructure,technology
+
+# Business intelligence
+python -m src.orchestrator domains.txt --profiles whois,business,language
+
+# Everything
+python -m src.orchestrator domains.txt --profiles complete
+```
+
+### 📝 Notes for Future Implementation
+When implementing, remember:
+1. ✅ **Profile matrix is pre-planned** - See `docs/TASK_MATRIX.md`
+2. **Implement dependency resolution** - Profiles must run in correct order
+3. **Cache core data** - When `headers` and `content` both need `http`, fetch once
+4. **Parallel execution** - Core profiles (`whois`, `dns`, `http`, `ssl`) can run simultaneously
+5. **Update matrix as you build** - Change 🔄 to ✅ when each check is implemented
+6. **Test combinations** - Verify `--profiles dns,ssl` works as expected
+
+### 📦 Tag
+```bash
+git commit -m "v0.10 - task profiles and clean database schema"
+git tag v0.10
+git push origin main --tags
+```
+
+---
+
 ## 🟢 Version 1.0 — Tests and Final Polish (Basic Launch)
 
 ### 🎯 Goal
