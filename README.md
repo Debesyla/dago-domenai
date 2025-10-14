@@ -2,7 +2,73 @@
 
 A modular, async-first backend for analyzing websites and domains — running multiple independent checks (status, redirects, robots.txt, sitemap, SSL, DNS) and storing structured JSON results.
 
-## Version 0.1 — Project Bootstrap ✅
+## Version 0.4 — First Real Check (HTTP Status) ✅
+
+### What's New in v0.4
+- ✅ **HTTP Status Check** (`src/checks/status_check.py`)
+  - Fetches HTTP status code using aiohttp
+  - Returns: code, ok, final_url, duration_ms
+  - Handles timeouts and connection errors gracefully
+- ✅ **Orchestrator Integration**
+  - Calls status_check for each domain
+  - Tracks execution time and error handling
+  - Updates result metadata and summary
+- ✅ **Enhanced Error Handling**
+  - SSL/certificate errors detected
+  - Connection errors reported
+  - Graceful degradation on failures
+
+### Current Features
+
+**Status Check Results:**
+```json
+{
+  "domain": "example.com",
+  "meta": {
+    "timestamp": "2025-10-14T12:04:15.649537+00:00",
+    "task": "basic-scan",
+    "execution_time_sec": 0.5,
+    "status": "success",
+    "schema_version": "1.0"
+  },
+  "checks": {
+    "status": {
+      "code": 200,
+      "ok": true,
+      "final_url": "https://example.com",
+      "duration_ms": 503
+    }
+  },
+  "summary": {
+    "reachable": true,
+    "https": true,
+    "issues": 0,
+    "warnings": 0,
+    "grade": "A"
+  }
+}
+```
+
+### Usage
+
+```bash
+# Analyze multiple domains from file
+python -m src.orchestrator domains.txt
+
+# Analyze a single domain
+python -m src.orchestrator --domain example.com
+```
+
+### Files Added/Modified in v0.4
+- `src/checks/status_check.py` — HTTP status check with aiohttp
+- `src/orchestrator.py` — Updated to integrate status_check
+- `src/core/schema.py` — Fixed None handling for failed checks
+
+---
+
+## Version History
+
+### Version 0.3 — Orchestrator ✅
 
 ### What's Done
 - ✅ Git repository initialized
@@ -92,20 +158,22 @@ See `docs/LOCAL_SETUP.md` for full macOS setup instructions.
 
 Following **LAUNCH_PLAN.md** incrementally:
 
-**v0.2 — Core Utilities & Schema**
-- Add `utils/config.py` (YAML loader)
-- Add `utils/logger.py` (logging + safe_run decorators)
-- Add `core/schema.py` (result factory)
-- Add `config.yaml` file
-- Test: All modules import without errors
+**v0.5 — Additional Checks**
+- Add redirect check (follow chain)
+- Add robots.txt check
+- Add sitemap.xml check
+- Add SSL/TLS certificate check
+- Test: All checks return structured data
 
-**v0.3 — Orchestrator**
-- Add `src/orchestrator.py` (async coordination)
-- Test: Can run with placeholder checks
+**v0.6 — Database Persistence**
+- Save results to PostgreSQL
+- Query and retrieve historical data
 
-**v0.4 — First Real Check**
-- Add `checks/status_check.py`
-- Test: Status check returns real results
+**v0.7+ — Advanced Features**
+- Reporting and exports
+- Comprehensive testing
+- AI-powered insights
+- Dashboard interface
 
 ### Documentation
 
@@ -116,5 +184,5 @@ Following **LAUNCH_PLAN.md** incrementally:
 
 ---
 
-**Status:** v0.1 complete — project bootstrapped and ready for incremental development 🎯
+**Status:** v0.4 complete — HTTP status check working! 🚀
 

@@ -85,8 +85,8 @@ def update_summary(result: Dict[str, Any]) -> None:
     if "status" in checks:
         status_check = checks["status"]
         result["summary"]["reachable"] = status_check.get("ok", False)
-        final_url = status_check.get("final_url", "")
-        result["summary"]["https"] = final_url.startswith("https://")
+        final_url = status_check.get("final_url")
+        result["summary"]["https"] = final_url.startswith("https://") if final_url else False
     
     # Count issues and warnings
     issues = 0

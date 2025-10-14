@@ -7,44 +7,55 @@ from typing import List, Dict, Any
 
 from src.utils.config import load_config, get_logging_config
 from src.utils.logger import setup_logger
-from src.core.schema import new_domain_result, update_result_meta
+from src.core.schema import new_domain_result, update_result_meta, add_check_result, update_summary
+from src.checks.status_check import run_status_check
 
 
-async def process_domain(domain: str, config: Dict[str, Any], logger) -> Dict[str, Any]:
+async def process_domain(domain: str, config: dict, logger) -> dict:
     """
-    Process a single domain through enabled checks.
+    Process a single domain and return the result JSON.
     
     Args:
-        domain: Domain name to analyze
-        config: Full configuration dict
+        domain: The domain to analyze
+        config: Configuration dictionary
         logger: Logger instance
         
     Returns:
-        Domain result dict
+        Standard JSON result object
     """
+    import time
     start_time = time.time()
-    result = new_domain_result(domain)
-    errors = []
     
+    task = config.get('orchestrator', {}).get('default_task', 'basic-scan')
     logger.info(f"Starting analysis for: {domain}")
     
-    try:
-        # Placeholder - we'll add actual checks in v0.4
-        # For now, just simulate some work
-        await asyncio.sleep(0.1)
-        
-        logger.info(f"Completed analysis for: {domain}")
-        
-    except Exception as e:
-        error_msg = f"Error processing {domain}: {str(e)}"
-        logger.error(error_msg)
-        errors.append(error_msg)
+    # Initialize result object
+    result = new_domain_result(domain, task)
     
-    # Update result metadata
+    errors = []
+    
+    # Run status check
+    status_result = await run_status_check(domain, config)
+    add_check_result(result, 'status', status_result)
+    
+    # Check if status check had errors
+    if 'error' in status_result:
+        errors.append(f"status: {status_result['error']}")
+    
+    # Calculate execution time
     execution_time = time.time() - start_time
-    status = "error" if errors else "success"
-    update_result_meta(result, execution_time, status, errors)
     
+    # Determine overall status
+    if errors:
+        status = 'error' if len(errors) == 1 else 'partial'
+    else:
+        status = 'success'
+    
+    # Update metadata and summary
+    update_result_meta(result, execution_time, status, errors if errors else None)
+    update_summary(result)
+    
+    logger.info(f"Completed analysis for: {domain}")
     return result
 
 
