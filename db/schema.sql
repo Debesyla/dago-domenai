@@ -141,7 +141,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- View: Discovery statistics (v0.9)
-CREATE OR REPLACE VIEW discovery_stats AS
+CREATE OR REPLACE VIEW v_discovery_stats AS
 SELECT 
     discovery_method,
     COUNT(*) as total_discoveries,
@@ -153,7 +153,7 @@ FROM domain_discoveries
 GROUP BY discovery_method;
 
 -- View: Top discovery sources (v0.9)
-CREATE OR REPLACE VIEW top_discovery_sources AS
+CREATE OR REPLACE VIEW v_top_discovery_sources AS
 SELECT 
     discovered_from as source_domain,
     discovery_method,
@@ -164,7 +164,7 @@ GROUP BY discovered_from, discovery_method
 ORDER BY domains_discovered DESC;
 
 -- View: Profile execution statistics (v0.10)
-CREATE OR REPLACE VIEW profile_execution_stats AS
+CREATE OR REPLACE VIEW v_profile_execution_stats AS
 SELECT 
     unnest(profiles_executed) as profile_name,
     COUNT(*) as execution_count,
@@ -178,7 +178,7 @@ GROUP BY profile_name
 ORDER BY execution_count DESC;
 
 -- View: Profile combination patterns (v0.10)
-CREATE OR REPLACE VIEW profile_combinations AS
+CREATE OR REPLACE VIEW v_profile_combinations AS
 SELECT 
     profiles_requested as profiles_combination,
     COUNT(*) as combination_count,
@@ -191,7 +191,7 @@ GROUP BY profiles_requested
 ORDER BY combination_count DESC;
 
 -- View: Profile dependency resolution stats (v0.10)
-CREATE OR REPLACE VIEW profile_dependency_stats AS
+CREATE OR REPLACE VIEW v_profile_dependency_stats AS
 SELECT 
     array_length(profiles_requested, 1) as requested_count,
     array_length(profiles_executed, 1) as executed_count,

@@ -68,7 +68,7 @@ This is the first production-ready release of dago-domenai, featuring a complete
   
 - **Database Schema v0.10**
   - Profile tracking in tasks and results tables
-  - 3 new analytics views (profile_execution_stats, profile_combinations, profile_dependency_stats)
+  - 3 new analytics views (v_profile_execution_stats, v_profile_combinations, v_profile_dependency_stats)
   - `validate_profile_data()` function for consistency checks
   - Meta profiles pre-populated in tasks table
 
@@ -88,7 +88,7 @@ This is the first production-ready release of dago-domenai, featuring a complete
 - **Domain Discovery Tracking**
   - `domain_discoveries` table for redirect/discovery tracking
   - Discovery method categorization (redirect, dns, social, sitemap, etc.)
-  - 2 analytics views (discovery_stats, top_discovery_sources)
+  - 2 analytics views (v_discovery_stats, v_top_discovery_sources)
   
 - **Active Domain Check**
   - `active_check.py` module for domain activity validation

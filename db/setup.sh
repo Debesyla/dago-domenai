@@ -76,11 +76,11 @@ DROP TABLE IF EXISTS domains CASCADE;
 DROP TABLE IF EXISTS domain_discoveries CASCADE;
 
 -- Drop all views
-DROP VIEW IF EXISTS discovery_stats CASCADE;
-DROP VIEW IF EXISTS top_discovery_sources CASCADE;
-DROP VIEW IF EXISTS profile_execution_stats CASCADE;
-DROP VIEW IF EXISTS profile_combinations CASCADE;
-DROP VIEW IF EXISTS profile_dependency_stats CASCADE;
+DROP VIEW IF EXISTS v_discovery_stats CASCADE;
+DROP VIEW IF EXISTS v_top_discovery_sources CASCADE;
+DROP VIEW IF EXISTS v_profile_execution_stats CASCADE;
+DROP VIEW IF EXISTS v_profile_combinations CASCADE;
+DROP VIEW IF EXISTS v_profile_dependency_stats CASCADE;
 
 -- Drop all functions
 DROP FUNCTION IF EXISTS set_updated_at() CASCADE;

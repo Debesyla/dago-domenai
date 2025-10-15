@@ -40,11 +40,11 @@ db/
 - **domain_discoveries** - Redirect/discovery tracking
 
 ### Views (5)
-- **discovery_stats** - Discovery method statistics
-- **top_discovery_sources** - Most productive discovery sources
-- **profile_execution_stats** - Profile usage statistics
-- **profile_combinations** - Common profile combinations
-- **profile_dependency_stats** - Dependency resolution analysis
+- **v_discovery_stats** - Discovery method statistics
+- **v_top_discovery_sources** - Most productive discovery sources
+- **v_profile_execution_stats** - Profile usage statistics
+- **v_profile_combinations** - Common profile combinations
+- **v_profile_dependency_stats** - Dependency resolution analysis
 
 ### Functions (2)
 - **set_updated_at()** - Auto-update timestamps
