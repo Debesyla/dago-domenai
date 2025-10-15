@@ -14,6 +14,7 @@ from src.checks.robots_check import run_robots_check
 from src.checks.sitemap_check import run_sitemap_check
 from src.checks.ssl_check import run_ssl_check
 from src.utils.db import save_result, init_db
+from src.utils.export import ResultExporter
 
 
 async def process_domain(domain: str, config: dict, logger) -> dict:
@@ -206,12 +207,34 @@ async def main():
     results = await process_domains(domains, config)
     total_time = time.time() - start_time
     
-    # Log summary
-    success_count = sum(1 for r in results if r['meta']['status'] == 'success')
-    error_count = len(results) - success_count
+    # Initialize exporter with logger
+    exporter = ResultExporter(export_dir="exports", logger=logger)
     
-    logger.info(f"Processing complete in {total_time:.2f}s")
-    logger.info(f"Success: {success_count}, Errors: {error_count}")
+    # Log and export summary
+    exporter.log_summary(results)
+    
+    # Export results to JSON (default)
+    export_format = config.get('export', {}).get('format', 'json')
+    export_enabled = config.get('export', {}).get('enabled', True)
+    
+    if export_enabled:
+        try:
+            if export_format == 'json' or export_format == 'both':
+                json_path = exporter.export_json(results)
+                logger.info(f"📄 Results exported to: {json_path}")
+            
+            if export_format == 'csv' or export_format == 'both':
+                csv_path = exporter.export_csv(results)
+                logger.info(f"📊 CSV exported to: {csv_path}")
+            
+            # Also export summary statistics
+            summary_path = exporter.export_summary(results)
+            logger.info(f"📈 Summary exported to: {summary_path}")
+            
+        except Exception as e:
+            logger.error(f"Export failed: {e}")
+    
+    logger.info(f"✅ Processing complete in {total_time:.2f}s")
     
     return results
 

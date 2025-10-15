@@ -29,3 +29,10 @@ checks:
     enabled: true
   ssl:
     enabled: true
+
+# Export configuration
+export:
+  enabled: true
+  format: both  # Options: 'json', 'csv', or 'both'
+  directory: ./exports
+  include_summary: true  # Generate summary statistics file
