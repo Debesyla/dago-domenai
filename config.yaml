@@ -18,6 +18,14 @@ network:
   verify_ssl: true
 
 checks:
+  whois:
+    enabled: true
+    # DAS (Domain Availability Service) configuration for domreg.lt
+    # DAS is the official bulk checking protocol from Lithuanian domain registry
+    server: das.domreg.lt
+    port: 4343
+    timeout: 5.0  # Socket timeout in seconds
+    rate_limit: 4  # Max queries per second (DAS supports "several dozens/sec")
   status:
     enabled: true
   redirect:
