@@ -407,17 +407,25 @@ def get_domain_flags(db_url: str, domain: str) -> Dict[str, Optional[bool]]:
         return {'is_registered': None, 'is_active': None}
 
 
-def insert_captured_domain(db_url: str, domain: str, source_domain: str = None) -> bool:
+def insert_captured_domain(
+    db_url: str, 
+    domain: str, 
+    source_domain: str = None,
+    track_discovery: bool = True,
+    metadata: Dict[str, Any] = None
+) -> bool:
     """
     Insert a captured .lt domain into the database for future checking.
     
     This is used when discovering new .lt domains from redirect chains.
-    If the domain already exists, this is a no-op.
+    If the domain already exists, this is a no-op (but still tracks discovery).
     
     Args:
         db_url: PostgreSQL connection string
         domain: Domain name to insert
-        source_domain: Original domain that redirected to this (for logging)
+        source_domain: Original domain that redirected to this (for logging/tracking)
+        track_discovery: Whether to record discovery in domain_discoveries table
+        metadata: Additional context (redirect chain, status codes, etc.)
         
     Returns:
         True if inserted (new domain), False if already exists or error
@@ -432,7 +440,24 @@ def insert_captured_domain(db_url: str, domain: str, source_domain: str = None) 
             existing = cursor.fetchone()
             
             if existing:
-                logger.debug(f"Domain {domain} already exists (id={existing['id']})")
+                domain_id = existing['id']
+                logger.debug(f"Domain {domain} already exists (id={domain_id})")
+                
+                # Track discovery even if domain exists (shows discovery path)
+                if track_discovery and source_domain:
+                    try:
+                        cursor.execute(
+                            """
+                            INSERT INTO domain_discoveries 
+                            (domain_id, discovered_from, discovery_method, metadata)
+                            VALUES (%s, %s, 'redirect', %s)
+                            """,
+                            (domain_id, source_domain, Json(metadata or {}))
+                        )
+                        logger.debug(f"Tracked rediscovery: {domain} from {source_domain}")
+                    except psycopg2.Error as e:
+                        logger.warning(f"Failed to track discovery for existing domain: {e}")
+                
                 return False
             
             # Insert new domain
@@ -448,9 +473,154 @@ def insert_captured_domain(db_url: str, domain: str, source_domain: str = None) 
             
             source_info = f" (from {source_domain})" if source_domain else ""
             logger.info(f"✅ Inserted captured domain: {domain}{source_info} (id={domain_id})")
+            
+            # Track discovery in domain_discoveries table
+            if track_discovery and source_domain:
+                try:
+                    cursor.execute(
+                        """
+                        INSERT INTO domain_discoveries 
+                        (domain_id, discovered_from, discovery_method, metadata)
+                        VALUES (%s, %s, 'redirect', %s)
+                        """,
+                        (domain_id, source_domain, Json(metadata or {}))
+                    )
+                    logger.debug(f"Tracked discovery: {domain} from {source_domain}")
+                except psycopg2.Error as e:
+                    logger.warning(f"Failed to track discovery: {e}")
+            
             return True
             
     except psycopg2.Error as e:
         logger.error(f"Failed to insert domain {domain}: {e}")
         return False
+
+
+def get_discovery_stats(db_url: str, limit: int = 10) -> Dict[str, Any]:
+    """
+    Get statistics about domain discoveries.
+    
+    Args:
+        db_url: PostgreSQL connection string
+        limit: Number of top sources to return
+        
+    Returns:
+        Dict with discovery metrics:
+        {
+            'total_discoveries': int,
+            'unique_sources': int,
+            'top_sources': [{'source': str, 'count': int}],
+            'recent_discoveries': [{'domain': str, 'source': str, 'date': str}]
+        }
+    """
+    try:
+        with DatabaseConnection(db_url) as cursor:
+            # Total discoveries
+            cursor.execute("SELECT COUNT(*) as count FROM domain_discoveries")
+            total = cursor.fetchone()['count']
+            
+            # Unique source domains
+            cursor.execute(
+                "SELECT COUNT(DISTINCT discovered_from) as count FROM domain_discoveries"
+            )
+            unique_sources = cursor.fetchone()['count']
+            
+            # Top discovery sources (hub domains)
+            cursor.execute(
+                """
+                SELECT discovered_from as source, COUNT(*) as count
+                FROM domain_discoveries
+                GROUP BY discovered_from
+                ORDER BY count DESC
+                LIMIT %s
+                """,
+                (limit,)
+            )
+            top_sources = [
+                {'source': row['source'], 'count': row['count']}
+                for row in cursor.fetchall()
+            ]
+            
+            # Recent discoveries
+            cursor.execute(
+                """
+                SELECT 
+                    d.domain_name,
+                    dd.discovered_from as source,
+                    dd.discovered_at
+                FROM domain_discoveries dd
+                JOIN domains d ON dd.domain_id = d.id
+                ORDER BY dd.discovered_at DESC
+                LIMIT %s
+                """,
+                (limit,)
+            )
+            recent = [
+                {
+                    'domain': row['domain_name'],
+                    'source': row['source'],
+                    'date': row['discovered_at'].isoformat() if row['discovered_at'] else None
+                }
+                for row in cursor.fetchall()
+            ]
+            
+            return {
+                'total_discoveries': total,
+                'unique_sources': unique_sources,
+                'top_sources': top_sources,
+                'recent_discoveries': recent
+            }
+            
+    except psycopg2.Error as e:
+        logger.error(f"Failed to get discovery stats: {e}")
+        return {
+            'total_discoveries': 0,
+            'unique_sources': 0,
+            'top_sources': [],
+            'recent_discoveries': []
+        }
+
+
+def get_domain_discovery_path(db_url: str, domain: str) -> List[Dict[str, Any]]:
+    """
+    Get the discovery path for a domain (how it was discovered).
+    
+    Args:
+        db_url: PostgreSQL connection string
+        domain: Domain name to look up
+        
+    Returns:
+        List of discovery records, each with:
+        {'source': str, 'method': str, 'date': str, 'metadata': dict}
+    """
+    try:
+        with DatabaseConnection(db_url) as cursor:
+            cursor.execute(
+                """
+                SELECT 
+                    dd.discovered_from as source,
+                    dd.discovery_method as method,
+                    dd.discovered_at as date,
+                    dd.metadata
+                FROM domain_discoveries dd
+                JOIN domains d ON dd.domain_id = d.id
+                WHERE d.domain_name = %s
+                ORDER BY dd.discovered_at ASC
+                """,
+                (domain,)
+            )
+            
+            return [
+                {
+                    'source': row['source'],
+                    'method': row['method'],
+                    'date': row['date'].isoformat() if row['date'] else None,
+                    'metadata': row['metadata'] or {}
+                }
+                for row in cursor.fetchall()
+            ]
+            
+    except psycopg2.Error as e:
+        logger.error(f"Failed to get discovery path for {domain}: {e}")
+        return []
 

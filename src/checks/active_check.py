@@ -1,12 +1,12 @@
 """
-Active Status Check (v0.8.2)
+Active Status Check (v0.8.2 / Enhanced in v0.9)
 
 Determines if a domain has an active website through:
 - DNS resolution check
 - HTTP/HTTPS connectivity test
 - Redirect chain analysis
 - Same-domain vs cross-domain detection
-- .lt domain capture from redirect chains
+- .lt domain capture from redirect chains (v0.9: smart subdomain handling)
 
 Active domains:
 - Respond with 2xx/4xx status codes
@@ -17,6 +17,11 @@ Inactive domains:
 - Connection timeout/refused
 - 5xx server errors
 - Redirect to different domain (parking/forwarding)
+
+v0.9 Enhancements:
+- Smart subdomain handling (.gov.lt subdomains preserved)
+- Ignore list for common services
+- Configurable capture rules
 """
 
 import asyncio
@@ -26,86 +31,42 @@ from typing import Dict, Any, List, Optional, Set
 from urllib.parse import urlparse
 import logging
 
-logger = logging.getLogger(__name__)
+# v0.9: Use centralized domain utilities
+from src.utils.domain_utils import (
+    extract_main_domain,
+    is_lithuanian_domain,
+    should_capture_domain,
+    is_same_domain_family,
+    extract_lt_domains_from_chain as extract_lt_domains_v09,
+    get_domain_from_url
+)
+
 logger = logging.getLogger(__name__)
 
 
+# Backward compatibility: Keep old function names as aliases
 def extract_root_domain(domain: str) -> str:
     """
-    Extract root domain from a domain string, removing subdomains.
-    
-    Examples:
-        www.example.lt → example.lt
-        subdomain.example.lt → example.lt
-        example.lt → example.lt
-        deep.sub.example.lt → example.lt
-    
-    Args:
-        domain: Domain string (may include subdomain)
-    
-    Returns:
-        Root domain without subdomains
+    DEPRECATED: Use domain_utils.extract_main_domain() instead.
+    Kept for backward compatibility.
     """
-    # Remove protocol if present
-    if '://' in domain:
-        domain = urlparse(domain).netloc or domain
-    
-    # Remove port if present
-    if ':' in domain:
-        domain = domain.split(':')[0]
-    
-    # Split by dots
-    parts = domain.lower().split('.')
-    
-    # For .lt domains, take last 2 parts (domain.lt)
-    # This handles: www.example.lt, subdomain.example.lt, etc.
-    if len(parts) >= 2 and parts[-1] == 'lt':
-        return '.'.join(parts[-2:])
-    
-    # For other TLDs, return as-is (fallback)
-    return domain.lower()
+    return extract_main_domain(domain)
 
 
 def normalize_domain(domain: str) -> str:
     """
-    Normalize domain for comparison (remove protocol, lowercase, optionally remove www).
+    Normalize domain for comparison (remove protocol, lowercase, remove www).
     
-    Does NOT remove subdomains - only removes www prefix.
-    
-    Examples:
-        example.lt → example.lt
-        www.example.lt → example.lt
-        WWW.EXAMPLE.LT → example.lt
-        https://example.lt → example.lt
-        subdomain.example.lt → subdomain.example.lt (keeps subdomain)
-    
-    Args:
-        domain: Domain string
-    
-    Returns:
-        Normalized domain (with subdomains preserved, except www)
+    v0.9: Now uses domain_utils for consistency.
     """
-    # Remove protocol if present
-    if '://' in domain:
-        domain = urlparse(domain).netloc or domain
-    
-    # Remove port if present  
-    if ':' in domain:
-        domain = domain.split(':')[0]
-    
-    # Lowercase
-    domain = domain.lower()
-    
-    # Remove www prefix if present
-    if domain.startswith('www.'):
-        domain = domain[4:]
-    
-    return domain
+    return extract_main_domain(domain)
 
 
 def is_same_domain(domain1: str, domain2: str) -> bool:
     """
     Check if two domains are the same (ignoring www, protocol, case).
+    
+    v0.9: Now uses domain_utils.is_same_domain_family() for consistency.
     
     www is treated as equivalent to no www, but other subdomains are NOT.
     
@@ -123,15 +84,14 @@ def is_same_domain(domain1: str, domain2: str) -> bool:
     Returns:
         True if same domain, False otherwise
     """
-    norm1 = normalize_domain(domain1)
-    norm2 = normalize_domain(domain2)
-    
-    return norm1 == norm2
+    return is_same_domain_family(domain1, domain2)
 
 
 def extract_domain_from_url(url: str) -> str:
     """
     Extract domain from URL.
+    
+    v0.9: Now uses domain_utils.get_domain_from_url() for consistency.
     
     Args:
         url: Full URL
@@ -139,43 +99,47 @@ def extract_domain_from_url(url: str) -> str:
     Returns:
         Domain only
     """
-    parsed = urlparse(url)
-    return parsed.netloc or url
+    return get_domain_from_url(url)
 
 
-def extract_lt_domains_from_chain(redirect_chain: List[str], original_domain: str) -> Set[str]:
+def extract_lt_domains_from_chain(
+    redirect_chain: List[str], 
+    original_domain: str,
+    config: Dict[str, Any] = None
+) -> List[str]:
     """
-    Extract all .lt root domains from redirect chain.
+    Extract all .lt domains from redirect chain (v0.9: smart subdomain handling).
+    
+    v0.9 Enhancements:
+    - Uses domain_utils for smart subdomain handling
+    - Preserves .gov.lt, .lrv.lt subdomains
+    - Applies ignore list for common services
+    - Configurable via config.yaml
     
     Rules:
     - Only capture .lt domains
-    - Only capture root domains (no subdomains)
+    - Smart subdomain handling (keep gov.lt, strip others)
     - Exclude the original domain
+    - Apply ignore list
     - Remove duplicates
     
     Args:
         redirect_chain: List of URLs in redirect chain
         original_domain: Original domain being checked (to exclude)
+        config: Optional configuration dict (for ignore list)
     
     Returns:
-        Set of captured .lt root domains
+        List of captured .lt domains
     """
-    captured = set()
-    original_root = extract_root_domain(original_domain)
+    # Get configuration
+    ignore_list = None
+    if config:
+        capture_config = config.get('redirect_capture', {})
+        if capture_config.get('enabled', True):
+            ignore_list = capture_config.get('ignore_common_services')
     
-    for url in redirect_chain:
-        domain = extract_domain_from_url(url)
-        root = extract_root_domain(domain)
-        
-        # Only capture .lt domains
-        if root.endswith('.lt'):
-            # Don't capture the original domain
-            if root != original_root:
-                # Don't capture if it's just www variant of original
-                if not is_same_domain(root, original_root):
-                    captured.add(root)
-    
-    return captured
+    # Use v0.9 domain_utils function
+    return extract_lt_domains_v09(redirect_chain, original_domain, ignore_list)
 
 
 async def check_dns_resolution(domain: str) -> bool:

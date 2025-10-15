@@ -44,3 +44,37 @@ export:
   format: both  # Options: 'json', 'csv', or 'both'
   directory: ./exports
   include_summary: true  # Generate summary statistics file
+# v0.9 - Smart Redirect Capture Configuration
+redirect_capture:
+  enabled: true
+  
+  # Only capture domains with these TLDs
+  target_tlds:
+    - '.lt'
+  
+  # Keep full subdomains for these patterns (don't strip to root)
+  # Example: stat.gov.lt and lrv.gov.lt are different government agencies
+  keep_subdomains_for:
+    - '.gov.lt'   # Government agencies
+    - '.lrv.lt'   # Lithuanian government
+    - '.edu.lt'   # Educational institutions
+    - '.mil.lt'   # Military
+  
+  # Don't capture these common services (not useful for analysis)
+  ignore_common_services:
+    - 'google.lt'
+    - 'maps.google.lt'
+    - 'facebook.com'
+    - 'youtube.com'
+    - 'linkedin.com'
+    - 'twitter.com'
+    - 'instagram.com'
+    - 'google.com'
+    - 'googleapis.com'
+    - 'gstatic.com'
+    - 'cloudflare.com'
+    - 'cloudfront.net'
+    - 'amazonaws.com'
+  
+  # Track discovery relationships for analytics
+  track_discoveries: true
