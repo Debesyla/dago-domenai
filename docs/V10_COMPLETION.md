@@ -145,6 +145,25 @@ Meta Profiles (expand to others):
    - Profile metadata in results
    - Backward compatibility maintained
 
+### Database Migration
+
+1. **`db/migrations/v0.10_profile_system.sql`** (~250 lines)
+   - Updates `tasks` table with profile support
+   - Adds `task_type`, `profiles`, `is_meta_profile` columns
+   - Updates `results` table with profile tracking
+   - Adds `profiles_requested`, `profiles_executed`, `execution_plan` columns
+   - Creates meta profile tasks (quick-check, standard, etc.)
+   - Adds analytics views for profile usage
+   - Includes validation function
+   - Maintains backward compatibility
+
+2. **`db/migrate_v10.sh`** (~200 lines)
+   - Interactive migration script
+   - Options: migrate only, clean + migrate, validate, show stats
+   - Safety checks and confirmations
+   - Validation after migration
+   - User-friendly output with colors
+
 ## API Reference
 
 ### Profile Schema Functions
@@ -602,6 +621,24 @@ Group 3: [headers, seo] (parallel - both depend only on http/content)
 
 **No Breaking Changes!** v0.10 is fully backward compatible.
 
+**Database Migration Required:**
+```bash
+# Option 1: Migrate and preserve existing data
+export DATABASE_URL='postgresql://user:password@localhost:5432/domenai'
+./db/migrate_v10.sh
+# Choose option 1
+
+# Option 2: Clean database and start fresh (for development)
+./db/migrate_v10.sh
+# Choose option 2 (WARNING: Deletes all data!)
+
+# Option 3: Manual migration
+psql $DATABASE_URL -f db/migrations/v0.10_profile_system.sql
+
+# Validate migration
+psql $DATABASE_URL -c "SELECT * FROM validate_profile_data();"
+```
+
 **Existing Code:**
 ```bash
 # This still works exactly as before
@@ -613,6 +650,26 @@ python -m src.orchestrator domains.txt
 # Now you can also do this
 python -m src.orchestrator domains.txt --profiles dns,ssl
 ```
+
+### Database Schema Changes
+
+**Tasks Table:**
+- Added `task_type` VARCHAR(50) - 'legacy', 'profile', or 'meta'
+- Added `profiles` TEXT[] - Array of profile names
+- Added `is_meta_profile` BOOLEAN - TRUE for meta profiles
+
+**Results Table:**
+- Added `profiles_requested` TEXT[] - Profiles user requested
+- Added `profiles_executed` TEXT[] - Profiles actually run (after dependency resolution)
+- Added `execution_plan` JSONB - Complete execution plan metadata
+
+**New Views:**
+- `profile_execution_stats` - Profile usage and performance statistics
+- `profile_combinations` - Most commonly used profile combinations
+- `profile_dependency_stats` - Dependency resolution analysis
+
+**New Functions:**
+- `validate_profile_data()` - Validates data consistency after migration
 
 ### Gradual Adoption
 
@@ -766,9 +823,70 @@ print('Execution order:', plan['execution_order'])
 - [x] API documented
 - [x] Usage examples provided
 - [x] Migration guide complete
+- [x] Database migration created
+- [x] Migration script tested
 - [x] Performance acceptable
 - [x] Error handling robust
 - [x] Documentation complete
+
+## Quick Start Guide
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run Database Migration
+
+```bash
+# Set your database URL
+export DATABASE_URL='postgresql://user:password@localhost:5432/domenai'
+
+# Run migration script (interactive)
+./db/migrate_v10.sh
+
+# Or run migration directly
+psql $DATABASE_URL -f db/migrations/v0.10_profile_system.sql
+
+# Verify migration
+psql $DATABASE_URL -c "SELECT * FROM validate_profile_data();"
+```
+
+### 3. Test Profile System
+
+```bash
+# Run tests
+python3 test_v10.py
+
+# Expected output: 132/132 tests passing ✅
+```
+
+### 4. Run Analysis with Profiles
+
+```bash
+# Quick check
+python -m src.orchestrator --domain example.lt --profiles quick-check
+
+# Multiple domains with specific profiles
+python -m src.orchestrator domains.txt --profiles dns,ssl,seo
+
+# Complete analysis
+python -m src.orchestrator priority.txt --profiles complete
+```
+
+### 5. View Results in Database
+
+```bash
+# View profile usage statistics
+psql $DATABASE_URL -c "SELECT * FROM profile_execution_stats;"
+
+# View profile combinations
+psql $DATABASE_URL -c "SELECT * FROM profile_combinations;"
+
+# View meta profiles
+psql $DATABASE_URL -c "SELECT name, profiles FROM tasks WHERE is_meta_profile = TRUE;"
+```
 
 ## Conclusion
 
