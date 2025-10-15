@@ -1,9 +1,16 @@
-"""Main orchestrator for domain analysis tasks"""
+"""Main orchestrator for domain analysis tasks
+
+v0.10 - Composable Profile System:
+  - Support for profile-based execution (--profiles dns,ssl,seo)
+  - Automatic dependency resolution
+  - Backward compatible with legacy check flags
+  - Early bailout optimization maintained
+"""
 import asyncio
 import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from src.utils.config import load_config, get_logging_config, get_database_config
 from src.utils.logger import setup_logger
@@ -18,8 +25,74 @@ from src.checks.active_check import run_active_check, check_domain_active
 from src.utils.db import save_result, init_db, update_domain_flags
 from src.utils.export import ResultExporter
 
+# v0.10 - Profile system imports
+try:
+    from src.profiles.profile_loader import (
+        resolve_profile_dependencies,
+        get_profile_execution_plan,
+        parse_profile_string,
+        validate_profile_combination,
+    )
+    PROFILES_AVAILABLE = True
+except ImportError:
+    PROFILES_AVAILABLE = False
 
-async def process_domain(domain: str, config: dict, logger) -> dict:
+
+def determine_checks_to_run(config: dict, profiles: Optional[List[str]] = None, logger=None) -> Dict[str, bool]:
+    """
+    Determine which checks to run based on profiles or legacy config.
+    
+    v0.10 - Profile-aware check selection:
+    - If profiles specified: Use profile system to determine checks
+    - If no profiles: Fall back to legacy checks config
+    
+    Args:
+        config: Configuration dictionary
+        profiles: List of profile names (None = use legacy)
+        logger: Optional logger for debug messages
+        
+    Returns:
+        Dict mapping check names to enabled status
+        Example: {'whois': True, 'dns': False, 'http': True, ...}
+    """
+    # Legacy mode: Use checks config directly
+    if not profiles or not PROFILES_AVAILABLE:
+        checks_config = config.get('checks', {})
+        return {
+            'whois': checks_config.get('whois', {}).get('enabled', True),
+            'status': checks_config.get('status', {}).get('enabled', True),
+            'redirect': checks_config.get('redirect', {}).get('enabled', True),
+            'robots': checks_config.get('robots', {}).get('enabled', True),
+            'sitemap': checks_config.get('sitemap', {}).get('enabled', True),
+            'ssl': checks_config.get('ssl', {}).get('enabled', True),
+        }
+    
+    # Profile mode: Resolve profiles and determine checks
+    try:
+        execution_order = resolve_profile_dependencies(profiles)
+        if logger:
+            logger.info(f"📋 Profile execution order: {' → '.join(execution_order)}")
+        
+        # Build checks dict based on profiles
+        checks = {
+            'whois': 'whois' in execution_order,
+            'http': 'http' in execution_order,
+            'ssl': 'ssl' in execution_order,
+            'dns': 'dns' in execution_order,
+            'status': 'http' in execution_order,  # status/redirect are part of http profile
+            'redirect': 'http' in execution_order,
+            'robots': 'seo' in execution_order,  # robots/sitemap are part of seo profile
+            'sitemap': 'seo' in execution_order,
+        }
+        
+        return checks
+    except Exception as e:
+        if logger:
+            logger.warning(f"Profile resolution failed: {e}, falling back to legacy mode")
+        return determine_checks_to_run(config, profiles=None, logger=logger)
+
+
+async def process_domain(domain: str, config: dict, logger, profiles: Optional[List[str]] = None) -> dict:
     """
     Process a single domain with early bailout optimization.
     
@@ -30,56 +103,88 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     4. If NOT active → skip remaining checks, save result
     5. If active → run full check suite
     
+    v0.10 Enhancement:
+    - Accepts optional profiles parameter for profile-based execution
+    - Resolves profile dependencies automatically
+    - Maintains backward compatibility with legacy check flags
+    - Adds profile metadata to results
+    
     Args:
         domain: The domain to analyze
         config: Configuration dictionary
         logger: Logger instance
+        profiles: Optional list of profile names (e.g., ['dns', 'ssl'])
         
     Returns:
-        Standard JSON result object
+        Standard JSON result object with profile metadata
     """
     import time
     start_time = time.time()
     
-    task = config.get('orchestrator', {}).get('default_task', 'basic-scan')
+    # Determine task name based on profiles or legacy config
+    if profiles:
+        task = f"profiles:{','.join(profiles)}"
+    else:
+        task = config.get('orchestrator', {}).get('default_task', 'basic-scan')
+    
     logger.info(f"Starting analysis for: {domain}")
+    
+    # Determine which checks to run
+    checks_to_run = determine_checks_to_run(config, profiles, logger)
     
     # Initialize result object
     result = new_domain_result(domain, task)
+    
+    # Add profile metadata if using profiles
+    if profiles and PROFILES_AVAILABLE:
+        try:
+            plan = get_profile_execution_plan(profiles)
+            result['meta']['profiles'] = {
+                'requested': profiles,
+                'execution_order': plan['execution_order'],
+                'estimated_duration': plan['estimated_duration'],
+            }
+            logger.debug(f"Profile plan: {plan['execution_order']}")
+        except Exception as e:
+            logger.warning(f"Failed to generate execution plan: {e}")
     
     errors = []
     checks_config = config.get('checks', {})
     db_config = get_database_config(config)
     
     # STEP 1: WHOIS Check (determines if domain is registered)
-    whois_result = await run_whois_check(domain, config)
-    add_check_result(result, 'whois', whois_result)
-    is_registered = whois_result.get('registered', True)
-    
-    # Update database with registration status
-    if db_config.get('save_results', True):
-        update_domain_flags(db_config['postgres_url'], domain, is_registered=is_registered)
-    
-    # EARLY BAILOUT: If not registered, skip all other checks
-    if not is_registered:
-        logger.info(f"⏭️  Domain {domain} is NOT registered - skipping all checks")
-        execution_time = time.time() - start_time
-        update_result_meta(result, execution_time, 'skipped', errors)
-        result['meta']['skip_reason'] = 'unregistered'
-        logger.info(f"Completed analysis for: {domain} (skipped - unregistered)")
-        return result
+    # Only run if whois check is enabled
+    if checks_to_run.get('whois', True):
+        whois_result = await run_whois_check(domain, config)
+        add_check_result(result, 'whois', whois_result)
+        is_registered = whois_result.get('registered', True)
+        
+        # Update database with registration status
+        if db_config.get('save_results', True):
+            update_domain_flags(db_config['postgres_url'], domain, is_registered=is_registered)
+        
+        # EARLY BAILOUT: If not registered, skip all other checks
+        if not is_registered:
+            logger.info(f"⏭️  Domain {domain} is NOT registered - skipping all checks")
+            execution_time = time.time() - start_time
+            update_result_meta(result, execution_time, 'skipped', errors)
+            result['meta']['skip_reason'] = 'unregistered'
+            logger.info(f"Completed analysis for: {domain} (skipped - unregistered)")
+            return result
+    else:
+        is_registered = True  # Assume registered if not checking
     
     # STEP 2: Run Status and Redirect checks to determine if active
     status_result = None
     redirect_result = None
     
-    if checks_config.get('status', {}).get('enabled', True):
+    if checks_to_run.get('status', True):
         status_result = await run_status_check(domain, config)
         add_check_result(result, 'status', status_result)
         if 'error' in status_result:
             errors.append(f"status: {status_result['error']}")
     
-    if checks_config.get('redirect', {}).get('enabled', True):
+    if checks_to_run.get('redirect', True):
         redirect_result = await run_redirect_check(domain, config)
         add_check_result(result, 'redirects', redirect_result)
         if 'error' in redirect_result:
@@ -123,21 +228,21 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     logger.info(f"✅ Domain {domain} is ACTIVE - running full checks")
     
     # 3. Robots.txt check
-    if checks_config.get('robots', {}).get('enabled', True):
+    if checks_to_run.get('robots', True):
         robots_result = await run_robots_check(domain, config)
         add_check_result(result, 'robots', robots_result)
         if 'error' in robots_result:
             errors.append(f"robots: {robots_result['error']}")
     
     # 4. Sitemap check
-    if checks_config.get('sitemap', {}).get('enabled', True):
+    if checks_to_run.get('sitemap', True):
         sitemap_result = await run_sitemap_check(domain, config)
         add_check_result(result, 'sitemap', sitemap_result)
         if 'error' in sitemap_result:
             errors.append(f"sitemap: {sitemap_result['error']}")
     
     # 5. SSL check
-    if checks_config.get('ssl', {}).get('enabled', True):
+    if checks_to_run.get('ssl', True):
         ssl_result = await run_ssl_check(domain, config)
         add_check_result(result, 'ssl', ssl_result)
         if 'error' in ssl_result:
@@ -162,19 +267,33 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     return result
 
 
-async def process_domains(domains: List[str], config: Dict[str, Any]) -> List[Dict[str, Any]]:
+async def process_domains(domains: List[str], config: Dict[str, Any], profiles: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """
     Process multiple domains sequentially.
+    
+    v0.10 - Profile support:
+    - Accepts optional profiles parameter
+    - Passes profiles to each domain processing
     
     Args:
         domains: List of domain names
         config: Full configuration dict
+        profiles: Optional list of profile names
         
     Returns:
         List of domain results
     """
     log_config = get_logging_config(config)
     logger = setup_logger(**log_config)
+    
+    # Log profile information if using profiles
+    if profiles and PROFILES_AVAILABLE:
+        logger.info(f"🎯 Using profiles: {', '.join(profiles)}")
+        try:
+            plan = get_profile_execution_plan(profiles)
+            logger.info(f"📊 Execution plan: {len(plan['execution_order'])} profiles, ~{plan['estimated_duration']}")
+        except Exception as e:
+            logger.warning(f"Could not generate execution plan: {e}")
     
     # Get database configuration
     db_config = get_database_config(config)
@@ -191,7 +310,7 @@ async def process_domains(domains: List[str], config: Dict[str, Any]) -> List[Di
     
     results = []
     for domain in domains:
-        result = await process_domain(domain, config, logger)
+        result = await process_domain(domain, config, logger, profiles)
         results.append(result)
         
         # Save to database if enabled
@@ -229,9 +348,17 @@ async def main():
     """Main entry point for orchestrator"""
     # Parse command line arguments
     if len(sys.argv) < 2:
-        print("Usage: python -m src.orchestrator <domains_file>")
-        print("   or: python -m src.orchestrator --domain <domain>")
-        print("\nExample: python -m src.orchestrator domains.txt")
+        print("Usage: python -m src.orchestrator <domains_file> [--profiles PROFILES]")
+        print("   or: python -m src.orchestrator --domain <domain> [--profiles PROFILES]")
+        print("\nProfiles (v0.10):")
+        print("  --profiles dns,ssl,seo    : Run specific profiles")
+        print("  --profiles quick-check    : Fast filtering")
+        print("  --profiles standard       : General analysis (default)")
+        print("  --profiles complete       : Comprehensive analysis")
+        print("\nExamples:")
+        print("  python -m src.orchestrator domains.txt")
+        print("  python -m src.orchestrator domains.txt --profiles dns,ssl")
+        print("  python -m src.orchestrator --domain example.lt --profiles quick-check")
         sys.exit(1)
     
     # Load configuration
@@ -244,16 +371,46 @@ async def main():
     log_config = get_logging_config(config)
     logger = setup_logger(**log_config)
     
+    # Parse profiles argument
+    profiles = None
+    args = sys.argv[1:]
+    
+    if '--profiles' in args:
+        profiles_idx = args.index('--profiles')
+        if profiles_idx + 1 >= len(args):
+            logger.error("--profiles requires a profile list")
+            sys.exit(1)
+        
+        profile_str = args[profiles_idx + 1]
+        profiles = parse_profile_string(profile_str)
+        
+        # Validate profiles
+        if PROFILES_AVAILABLE:
+            is_valid, error = validate_profile_combination(profiles)
+            if not is_valid:
+                logger.error(f"Invalid profile combination: {error}")
+                sys.exit(1)
+        else:
+            logger.warning("Profile system not available, ignoring --profiles")
+            profiles = None
+        
+        # Remove --profiles and its value from args
+        args = args[:profiles_idx] + args[profiles_idx+2:]
+    
     # Get domains
     try:
-        if sys.argv[1] == '--domain':
-            if len(sys.argv) < 3:
-                print("Error: --domain requires a domain name")
+        if '--domain' in args:
+            domain_idx = args.index('--domain')
+            if domain_idx + 1 >= len(args):
+                logger.error("--domain requires a domain name")
                 sys.exit(1)
-            domains = [sys.argv[2]]
-        else:
-            domains_file = sys.argv[1]
+            domains = [args[domain_idx + 1]]
+        elif len(args) > 0:
+            domains_file = args[0]
             domains = load_domains_from_file(domains_file)
+        else:
+            logger.error("No domains specified")
+            sys.exit(1)
     except FileNotFoundError as e:
         logger.error(str(e))
         sys.exit(1)
@@ -269,7 +426,7 @@ async def main():
     
     # Process domains
     start_time = time.time()
-    results = await process_domains(domains, config)
+    results = await process_domains(domains, config, profiles)
     total_time = time.time() - start_time
     
     # Initialize exporter with logger

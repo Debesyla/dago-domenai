@@ -44,6 +44,157 @@ export:
   format: both  # Options: 'json', 'csv', or 'both'
   directory: ./exports
   include_summary: true  # Generate summary statistics file
+
+# v0.10 - Composable Profile System
+# Profiles define which checks to run, organized by data source
+# Users can combine profiles: --profiles dns,ssl,seo
+profiles:
+  # Default profile if none specified
+  default: standard
+  
+  # Enable/disable check modules per profile
+  # Core profiles make external API calls
+  whois:
+    enabled: true
+    checks:
+      - registration_status  # ✅ v0.8.1
+      - registrar_info       # 🔄 Planned
+      - registration_dates   # 🔄 Planned
+      - domain_age           # 🔄 Planned
+  
+  dns:
+    enabled: true
+    checks:
+      - a_record            # 🔄 Planned v1.1
+      - aaaa_record         # 🔄 Planned v1.1
+      - mx_records          # 🔄 Planned v1.2
+      - ns_records          # 🔄 Planned v1.1
+      - txt_records         # 🔄 Planned v1.2
+      - cname_records       # 🔄 Planned v1.2
+  
+  http:
+    enabled: true
+    checks:
+      - status_code         # ✅ v0.8.2
+      - redirect_chain      # ✅ v0.8.2
+      - response_time       # 🔄 Planned v1.1
+      - https_available     # 🔄 Planned v1.1
+  
+  ssl:
+    enabled: true
+    checks:
+      - certificate_present # ✅ v0.7
+      - certificate_expiry  # ✅ v0.7
+      - certificate_issuer  # ✅ v0.7
+      - validation_type     # 🔄 Planned v1.1
+  
+  # Analysis profiles process data from core profiles (no additional API calls)
+  headers:
+    enabled: false
+    depends_on: [http]
+    checks:
+      - security_headers    # 🔄 Planned v1.2
+      - hsts                # 🔄 Planned v1.2
+      - csp                 # 🔄 Planned v2.1
+  
+  content:
+    enabled: false
+    depends_on: [http]
+    checks:
+      - html_title          # 🔄 Planned v1.2
+      - meta_description    # 🔄 Planned v1.2
+      - content_language    # 🔄 Planned v1.2
+  
+  infrastructure:
+    enabled: false
+    depends_on: [dns, http]
+    checks:
+      - hosting_provider    # 🔄 Planned v1.3
+      - cdn_detection       # 🔄 Planned v1.3
+      - geolocation         # 🔄 Planned v1.3
+  
+  technology:
+    enabled: false
+    depends_on: [http, content]
+    checks:
+      - tech_stack          # 🔄 Planned v1.3
+      - frameworks          # 🔄 Planned v1.3
+  
+  seo:
+    enabled: false
+    depends_on: [http, content]
+    checks:
+      - meta_tags           # 🔄 Planned v1.2
+      - robots_txt          # ✅ v0.7
+      - sitemap_xml         # ✅ v0.7
+  
+  # Intelligence profiles for business insights
+  security:
+    enabled: false
+    depends_on: [http, headers, ssl]
+    checks:
+      - vulnerability_scan  # 🔄 Planned v2.1
+      - security_score      # 🔄 Planned v2.1
+  
+  compliance:
+    enabled: false
+    depends_on: [http, content, headers]
+    checks:
+      - gdpr_compliance     # 🔄 Planned v2.1
+      - privacy_policy      # 🔄 Planned v2.1
+  
+  business:
+    enabled: false
+    depends_on: [whois, http, content]
+    checks:
+      - company_info        # 🔄 Planned v2.1
+      - contact_details     # 🔄 Planned v2.1
+  
+  language:
+    enabled: false
+    depends_on: [http, content]
+    checks:
+      - language_detection  # 🔄 Planned v2.1
+      - language_targeting  # 🔄 Planned v2.1
+  
+  clustering:
+    enabled: false
+    depends_on: [dns, whois]
+    checks:
+      - portfolio_detection # 🔄 Planned v2.2
+      - domain_clustering   # 🔄 Planned v2.2
+  
+  # Meta profiles - Pre-configured combinations
+  quick-check:
+    enabled: true
+    profiles: [whois, http]
+    description: "Fast filtering - registration + connectivity"
+  
+  standard:
+    enabled: true
+    profiles: [whois, dns, http, ssl, seo]
+    description: "General analysis - core profiles + seo"
+  
+  technical-audit:
+    enabled: true
+    profiles: [whois, dns, http, ssl, headers, security, infrastructure, technology]
+    description: "Security and infrastructure focus"
+  
+  business-research:
+    enabled: true
+    profiles: [whois, dns, http, ssl, business, language, clustering]
+    description: "Market intelligence"
+  
+  complete:
+    enabled: true
+    profiles: [whois, dns, http, ssl, headers, content, infrastructure, technology, seo, security, compliance, business, language]
+    description: "Comprehensive analysis - all checks"
+  
+  monitor:
+    enabled: true
+    profiles: [whois, http]
+    description: "Change detection - minimal recurring"
+
 # v0.9 - Smart Redirect Capture Configuration
 redirect_capture:
   enabled: true
