@@ -320,3 +320,89 @@ def get_stats(db_url: str) -> Dict[str, Any]:
     except psycopg2.Error as e:
         logger.error(f"Failed to get stats: {e}")
         return {}
+
+
+def update_domain_flags(db_url: str, domain: str, is_registered: Optional[bool] = None, is_active: Optional[bool] = None) -> bool:
+    """
+    Update is_registered and is_active flags for a domain.
+    Used by orchestrator after running WHOIS and active checks.
+    
+    Args:
+        db_url: PostgreSQL connection string
+        domain: Domain name
+        is_registered: Registration status (True/False/None)
+        is_active: Activity status (True/False/None)
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        with DatabaseConnection(db_url) as cursor:
+            # Get domain_id
+            domain_id = get_or_create_domain(cursor, domain)
+            
+            # Build UPDATE query for fields that are provided
+            updates = []
+            params = []
+            
+            if is_registered is not None:
+                updates.append("is_registered = %s")
+                params.append(is_registered)
+            
+            if is_active is not None:
+                updates.append("is_active = %s")
+                params.append(is_active)
+            
+            if not updates:
+                # Nothing to update
+                return True
+            
+            # Always update updated_at
+            updates.append("updated_at = NOW()")
+            params.append(domain_id)
+            
+            query = f"UPDATE domains SET {', '.join(updates)} WHERE id = %s"
+            cursor.execute(query, params)
+            
+            logger.debug(f"Updated flags for {domain}: is_registered={is_registered}, is_active={is_active}")
+            return True
+            
+    except psycopg2.Error as e:
+        logger.error(f"Failed to update flags for {domain}: {e}")
+        return False
+
+
+def get_domain_flags(db_url: str, domain: str) -> Dict[str, Optional[bool]]:
+    """
+    Get is_registered and is_active flags for a domain.
+    
+    Args:
+        db_url: PostgreSQL connection string
+        domain: Domain name
+        
+    Returns:
+        Dictionary with 'is_registered' and 'is_active' keys (can be None)
+    """
+    try:
+        with DatabaseConnection(db_url) as cursor:
+            cursor.execute(
+                "SELECT is_registered, is_active FROM domains WHERE domain_name = %s",
+                (domain,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                return {
+                    'is_registered': row['is_registered'],
+                    'is_active': row['is_active']
+                }
+            else:
+                return {
+                    'is_registered': None,
+                    'is_active': None
+                }
+                
+    except psycopg2.Error as e:
+        logger.error(f"Failed to get flags for {domain}: {e}")
+        return {'is_registered': None, 'is_active': None}
+

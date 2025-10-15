@@ -13,13 +13,22 @@ from src.checks.redirect_check import run_redirect_check
 from src.checks.robots_check import run_robots_check
 from src.checks.sitemap_check import run_sitemap_check
 from src.checks.ssl_check import run_ssl_check
-from src.utils.db import save_result, init_db
+from src.checks.whois_check import run_whois_check, check_domain_registration
+from src.checks.active_check import run_active_check, check_domain_active
+from src.utils.db import save_result, init_db, update_domain_flags
 from src.utils.export import ResultExporter
 
 
 async def process_domain(domain: str, config: dict, logger) -> dict:
     """
-    Process a single domain and return the result JSON.
+    Process a single domain with early bailout optimization.
+    
+    v0.8 Logic:
+    1. Run WHOIS check first
+    2. If NOT registered → skip all other checks, save result
+    3. If registered → run active check (status + redirect)
+    4. If NOT active → skip remaining checks, save result
+    5. If active → run full check suite
     
     Args:
         domain: The domain to analyze
@@ -40,22 +49,63 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     
     errors = []
     checks_config = config.get('checks', {})
+    db_config = get_database_config(config)
     
-    # Run all enabled checks
+    # STEP 1: WHOIS Check (determines if domain is registered)
+    whois_result = await run_whois_check(domain, config)
+    add_check_result(result, 'whois', whois_result)
+    is_registered = whois_result.get('registered', True)
     
-    # 1. Status check
+    # Update database with registration status
+    if db_config.get('save_results', True):
+        update_domain_flags(db_config['postgres_url'], domain, is_registered=is_registered)
+    
+    # EARLY BAILOUT: If not registered, skip all other checks
+    if not is_registered:
+        logger.info(f"⏭️  Domain {domain} is NOT registered - skipping all checks")
+        execution_time = time.time() - start_time
+        update_result_meta(result, execution_time, 'skipped', errors)
+        result['meta']['skip_reason'] = 'unregistered'
+        logger.info(f"Completed analysis for: {domain} (skipped - unregistered)")
+        return result
+    
+    # STEP 2: Run Status and Redirect checks to determine if active
+    status_result = None
+    redirect_result = None
+    
     if checks_config.get('status', {}).get('enabled', True):
         status_result = await run_status_check(domain, config)
         add_check_result(result, 'status', status_result)
         if 'error' in status_result:
             errors.append(f"status: {status_result['error']}")
     
-    # 2. Redirect check
     if checks_config.get('redirect', {}).get('enabled', True):
         redirect_result = await run_redirect_check(domain, config)
         add_check_result(result, 'redirects', redirect_result)
         if 'error' in redirect_result:
             errors.append(f"redirects: {redirect_result['error']}")
+    
+    # STEP 3: Determine if domain is active
+    active_result = await run_active_check(domain, config, status_result, redirect_result)
+    add_check_result(result, 'active', active_result)
+    is_active = active_result.get('active', True)
+    
+    # Update database with active status
+    if db_config.get('save_results', True):
+        update_domain_flags(db_config['postgres_url'], domain, is_active=is_active)
+    
+    # EARLY BAILOUT: If not active, skip remaining expensive checks
+    if not is_active:
+        logger.info(f"⏭️  Domain {domain} is NOT active - skipping remaining checks")
+        logger.info(f"   Reason: {active_result.get('reason', 'Unknown')}")
+        execution_time = time.time() - start_time
+        update_result_meta(result, execution_time, 'partial', errors)
+        result['meta']['skip_reason'] = 'inactive'
+        logger.info(f"Completed analysis for: {domain} (partial - inactive)")
+        return result
+    
+    # STEP 4: Run full check suite for active domains
+    logger.info(f"✅ Domain {domain} is ACTIVE - running full checks")
     
     # 3. Robots.txt check
     if checks_config.get('robots', {}).get('enabled', True):
