@@ -90,6 +90,21 @@ async def process_domain(domain: str, config: dict, logger) -> dict:
     add_check_result(result, 'active', active_result)
     is_active = active_result.get('active', True)
     
+    # Process captured .lt domains from redirect chain
+    captured_domains = active_result.get('captured_domains', [])
+    if captured_domains and db_config.get('save_results', True):
+        try:
+            from src.checks.active_check import insert_captured_domains
+            inserted_count = insert_captured_domains(
+                db_config['postgres_url'], 
+                captured_domains, 
+                domain
+            )
+            if inserted_count > 0:
+                logger.info(f"📥 Added {inserted_count} new .lt domain(s) for future checking")
+        except Exception as e:
+            logger.warning(f"Failed to insert captured domains: {e}")
+    
     # Update database with active status
     if db_config.get('save_results', True):
         update_domain_flags(db_config['postgres_url'], domain, is_active=is_active)

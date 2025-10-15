@@ -406,3 +406,51 @@ def get_domain_flags(db_url: str, domain: str) -> Dict[str, Optional[bool]]:
         logger.error(f"Failed to get flags for {domain}: {e}")
         return {'is_registered': None, 'is_active': None}
 
+
+def insert_captured_domain(db_url: str, domain: str, source_domain: str = None) -> bool:
+    """
+    Insert a captured .lt domain into the database for future checking.
+    
+    This is used when discovering new .lt domains from redirect chains.
+    If the domain already exists, this is a no-op.
+    
+    Args:
+        db_url: PostgreSQL connection string
+        domain: Domain name to insert
+        source_domain: Original domain that redirected to this (for logging)
+        
+    Returns:
+        True if inserted (new domain), False if already exists or error
+    """
+    try:
+        with DatabaseConnection(db_url) as cursor:
+            # Check if domain already exists
+            cursor.execute(
+                "SELECT id FROM domains WHERE domain_name = %s",
+                (domain,)
+            )
+            existing = cursor.fetchone()
+            
+            if existing:
+                logger.debug(f"Domain {domain} already exists (id={existing['id']})")
+                return False
+            
+            # Insert new domain
+            cursor.execute(
+                """
+                INSERT INTO domains (domain_name, created_at, updated_at)
+                VALUES (%s, NOW(), NOW())
+                RETURNING id
+                """,
+                (domain,)
+            )
+            domain_id = cursor.fetchone()['id']
+            
+            source_info = f" (from {source_domain})" if source_domain else ""
+            logger.info(f"✅ Inserted captured domain: {domain}{source_info} (id={domain_id})")
+            return True
+            
+    except psycopg2.Error as e:
+        logger.error(f"Failed to insert domain {domain}: {e}")
+        return False
+
