@@ -5,6 +5,56 @@ All notable changes to dago-domenai will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-10-16
+
+### 🎯 Dual Protocol WHOIS Implementation
+
+Complete WHOIS profile with detailed domain data retrieval using DAS + standard WHOIS.
+
+### Added
+- **WHOISClient class** - Standard WHOIS protocol (port 43) implementation
+  - Socket-based queries with timeout handling
+  - Token bucket rate limiter (100 queries / 30 minutes)
+  - Graceful error handling and degradation
+  
+- **WHOIS Response Parser** - Extract all available .lt WHOIS fields
+  - Registrar details (name, website, email)
+  - Registration dates (registered, expires)
+  - Contact information (organization, email) for non-privacy domains
+  - Nameservers with optional IP addresses
+  - Derived fields: domain age, days until expiry
+  - Privacy protection detection
+  
+- **Dual Protocol Strategy**
+  - DAS first (fast) → Check registration status
+  - WHOIS second (detailed) → Get full data for registered domains only
+  - Early bailout for unregistered domains (5x faster)
+  - Rate limit protection with graceful degradation
+
+### Changed
+- **`run_whois_check()`** - Updated to dual protocol flow
+  - Returns complete JSONB structure for registered domains
+  - Returns minimal structure for unregistered domains
+  - Handles rate limiting gracefully (returns DAS-only data)
+  
+- **`config.yaml`** - Extended WHOIS configuration
+  - Added `whois_server`, `whois_port`, `whois_timeout`
+  - Added `whois_rate_limit` (100 per 30 minutes)
+  - Maintained backward compatibility with existing DAS config
+
+### Documentation
+- **`docs/DAS_VS_WHOIS_ANALYSIS.md`** - Protocol comparison and test results
+- **`docs/WHOIS_FIELD_ANALYSIS.md`** - Complete field mapping for .lt domains
+- **`docs/V1.1_COMPLETION_SUMMARY.md`** - Implementation summary and test results
+- Updated `docs/LAUNCH_PLAN.md` - Realistic v1.1 goals
+
+### Performance
+- **Unregistered domains:** 0.02s (DAS only, 5x faster than before)
+- **Registered domains:** 0.10s (DAS + WHOIS, complete data)
+- **Rate limiting:** Prevents IP blocking, automatic token bucket management
+
+---
+
 ## [1.0.0] - 2025-10-15
 
 ### 🎉 First Production Release!

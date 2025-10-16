@@ -105,7 +105,8 @@ async def run_check(domain: str, config: Dict) -> Dict:
 - **v0.8**: Introduced early bailout optimization (WHOIS first, skip unregistered)
 - **v0.9**: Added domain discovery tracking (redirects create `domain_discoveries` records)
 - **v0.10**: Complete profile system with dependency resolution
-- **v1.0** (current): Production release with test suite and streamlined DB setup
+- **v1.0**: Production release with test suite and streamlined DB setup
+- **v1.1** (current): Dual protocol WHOIS (DAS + port 43) with complete registration data
 
 ## Common Tasks
 
@@ -140,8 +141,34 @@ async def run_check(domain: str, config: Dict) -> Dict:
 
 ## Lithuanian Domain (.lt) Specifics
 
-WHOIS checks use **DAS protocol** (Domain Availability Service) for bulk checking:
-- Server: `das.domreg.lt:4343` (configured in `config.yaml`)
-- Rate limit: 4 queries/second (Lithuanian registry supports "several dozens/sec")
-- Socket-based protocol, not HTTP
-- See `src/checks/whois_check.py` for implementation details
+WHOIS checks use **dual protocol approach** (v1.1):
+
+### DAS Protocol (Domain Availability Service)
+- **Purpose**: Fast bulk registration status checking
+- **Server**: `das.domreg.lt:4343` (configured in `config.yaml`)
+- **Rate limit**: 4 queries/second (Lithuanian registry supports "several dozens/sec")
+- **Protocol**: Socket-based, not HTTP
+- **Returns**: Domain name + status only (registered/available)
+- **Used for**: Early bailout optimization (skip unregistered domains)
+
+### Standard WHOIS (Port 43)
+- **Purpose**: Detailed registration data for registered domains only
+- **Server**: `whois.domreg.lt:43`
+- **Rate limit**: 100 queries per 30 minutes (STRICT - IP blocking enforced)
+- **Returns**: Complete data (registrar, dates, nameservers, contacts)
+- **Rate limiter**: Token bucket implementation in `WHOISClient` class
+- **Graceful degradation**: Returns DAS-only data if rate limited
+
+### Implementation
+```python
+# Dual protocol flow in run_whois_check():
+1. DAS check (fast) → Is registered?
+   - If NO → Return 'available' (early bailout, 0.02s)
+   - If YES → Continue to step 2
+
+2. WHOIS query (detailed) → Get full data
+   - If rate limited → Return DAS data only
+   - If success → Return complete JSONB structure (0.10s)
+```
+
+See `src/checks/whois_check.py` for implementation details.

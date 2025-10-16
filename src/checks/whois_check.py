@@ -193,6 +193,325 @@ class DASClient:
         }
 
 
+class TokenBucket:
+    """
+    Token bucket rate limiter for WHOIS queries.
+    
+    Implements token bucket algorithm to enforce rate limits.
+    For WHOIS port 43: 100 queries per 30 minutes (strict registry limit).
+    """
+    
+    def __init__(self, max_tokens: int = 100, refill_period: float = 1800):
+        """
+        Initialize token bucket.
+        
+        Args:
+            max_tokens: Maximum number of tokens (queries) in bucket
+            refill_period: Time in seconds to refill all tokens (default: 1800 = 30 minutes)
+        """
+        self.max_tokens = max_tokens
+        self.tokens = max_tokens
+        self.refill_period = refill_period
+        self.refill_rate = max_tokens / refill_period  # Tokens per second
+        self.last_refill = time.time()
+        self.lock = asyncio.Lock()
+    
+    async def acquire(self) -> bool:
+        """
+        Try to acquire a token (permission to make query).
+        
+        Returns:
+            True if token acquired, False if rate limit exceeded
+        """
+        async with self.lock:
+            # Refill tokens based on elapsed time
+            now = time.time()
+            elapsed = now - self.last_refill
+            tokens_to_add = elapsed * self.refill_rate
+            
+            self.tokens = min(self.max_tokens, self.tokens + tokens_to_add)
+            self.last_refill = now
+            
+            # Check if we have tokens available
+            if self.tokens >= 1.0:
+                self.tokens -= 1.0
+                return True
+            
+            return False
+    
+    def tokens_available(self) -> float:
+        """Get current number of tokens available."""
+        return self.tokens
+    
+    def time_until_token(self) -> float:
+        """Get time in seconds until next token is available."""
+        if self.tokens >= 1.0:
+            return 0.0
+        return (1.0 - self.tokens) / self.refill_rate
+
+
+class WHOISClient:
+    """
+    Standard WHOIS client for detailed domain information (port 43).
+    
+    This client queries the standard WHOIS protocol on port 43 to get
+    detailed registration information including registrar, dates, and contacts.
+    
+    IMPORTANT: This has STRICT rate limiting (100 queries per 30 minutes)
+    with IP blocking. Use sparingly and only for registered domains.
+    """
+    
+    def __init__(self, server: str = 'whois.domreg.lt', port: int = 43, 
+                 timeout: float = 10.0, rate_limit: int = 100):
+        """
+        Initialize WHOIS client.
+        
+        Args:
+            server: WHOIS server address (default: whois.domreg.lt)
+            port: WHOIS server port (default: 43)
+            timeout: Socket timeout in seconds (default: 10.0)
+            rate_limit: Max queries per 30 minutes (default: 100)
+        """
+        self.server = server
+        self.port = port
+        self.timeout = timeout
+        self.rate_limiter = TokenBucket(max_tokens=rate_limit, refill_period=1800)
+        self.query_count = 0
+    
+    async def query(self, domain: str) -> Dict[str, any]:
+        """
+        Query WHOIS for detailed domain information.
+        
+        Args:
+            domain: Domain name to query
+        
+        Returns:
+            Parsed WHOIS data or error dict
+        """
+        # Check rate limit
+        if not await self.rate_limiter.acquire():
+            time_until = self.rate_limiter.time_until_token()
+            logger.warning(f"WHOIS rate limit exceeded. Next query available in {time_until:.0f}s")
+            return {
+                'error': 'rate_limit_exceeded',
+                'message': f'Rate limit exceeded. Try again in {time_until:.0f} seconds',
+                'time_until_available': time_until
+            }
+        
+        try:
+            # Run blocking socket operation in thread pool
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                self._query_whois_socket,
+                domain
+            )
+            
+            self.query_count += 1
+            
+            # Parse response
+            parsed = parse_whois_response(response)
+            return parsed
+            
+        except socket.timeout:
+            logger.warning(f"WHOIS query timeout for domain: {domain}")
+            return {
+                'error': 'timeout',
+                'message': 'WHOIS query timed out'
+            }
+        except socket.error as e:
+            logger.error(f"WHOIS socket error for domain {domain}: {e}")
+            return {
+                'error': 'socket_error',
+                'message': f'Socket error: {str(e)}'
+            }
+        except Exception as e:
+            logger.error(f"WHOIS query failed for domain {domain}: {e}")
+            return {
+                'error': 'query_failed',
+                'message': str(e)
+            }
+    
+    def _query_whois_socket(self, domain: str) -> str:
+        """
+        Execute WHOIS query via TCP socket (blocking operation).
+        
+        Args:
+            domain: Domain name to query
+        
+        Returns:
+            Raw WHOIS response text
+        """
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(self.timeout)
+        
+        try:
+            # Connect to WHOIS server
+            sock.connect((self.server, self.port))
+            
+            # Send WHOIS query: "domain.lt\n"
+            query = f"{domain}\n"
+            sock.sendall(query.encode('utf-8'))
+            
+            # Read response
+            response = b""
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                response += chunk
+            
+            return response.decode('utf-8', errors='ignore')
+            
+        finally:
+            sock.close()
+
+
+def parse_whois_response(response: str) -> Dict[str, any]:
+    """
+    Parse .lt WHOIS response into structured data.
+    
+    Expected format:
+        % Hello, this is the DOMREG whois service.
+        % ... (terms of service)
+        %
+        Domain:                 example.lt
+        Status:                 registered
+        Registered:             2002-05-14
+        Expires:                2026-05-14
+        %
+        Registrar:              Some Registrar
+        Registrar website:      https://example.com
+        Registrar email:        contact@example.com
+        %
+        Contact organization:   Company Name (optional - only if not privacy protected)
+        Contact email:          contact@company.com (optional)
+        %
+        Nameserver:             ns1.example.com
+        Nameserver:             ns2.example.com    [1.2.3.4]
+    
+    Args:
+        response: Raw WHOIS response text
+    
+    Returns:
+        {
+            'domain': str,
+            'status': str,
+            'dates': {
+                'registered': str,      # YYYY-MM-DD
+                'expires': str,         # YYYY-MM-DD
+                'age_days': int,
+                'days_until_expiry': int
+            },
+            'registrar': {
+                'name': str,
+                'website': str,
+                'email': str
+            },
+            'contact': {
+                'organization': str | None,
+                'email': str | None,
+                'privacy_protected': bool
+            },
+            'nameservers': [str],
+            'nameserver_details': [{'hostname': str, 'ip': str | None}],
+            'raw_response': str
+        }
+    """
+    from datetime import datetime
+    
+    data = {
+        'domain': None,
+        'status': None,
+        'dates': {},
+        'registrar': {},
+        'contact': {
+            'organization': None,
+            'email': None,
+            'privacy_protected': True  # Default to True, set False if contact found
+        },
+        'nameservers': [],
+        'nameserver_details': [],
+        'raw_response': response
+    }
+    
+    for line in response.split('\n'):
+        # Skip comments and empty lines
+        if line.startswith('%') or not line.strip():
+            continue
+        
+        if ':' not in line:
+            continue
+        
+        key, value = line.split(':', 1)
+        key = key.strip()
+        value = value.strip()
+        
+        # Core fields
+        if key == 'Domain':
+            data['domain'] = value
+        elif key == 'Status':
+            data['status'] = value
+        elif key == 'Registered':
+            data['dates']['registered'] = value
+        elif key == 'Expires':
+            data['dates']['expires'] = value
+        
+        # Registrar info
+        elif key == 'Registrar':
+            data['registrar']['name'] = value
+        elif key == 'Registrar website':
+            data['registrar']['website'] = value
+        elif key == 'Registrar email':
+            data['registrar']['email'] = value
+        
+        # Contact info (may be absent if privacy protected)
+        elif key == 'Contact organization':
+            data['contact']['organization'] = value
+            data['contact']['privacy_protected'] = False
+        elif key == 'Contact email':
+            data['contact']['email'] = value
+            data['contact']['privacy_protected'] = False
+        
+        # Nameservers
+        elif key == 'Nameserver':
+            # Handle optional IP: "ns1.example.com    [1.2.3.4]"
+            if '[' in value:
+                parts = value.split('[')
+                hostname = parts[0].strip()
+                ip = parts[1].rstrip(']').strip()
+                data['nameserver_details'].append({
+                    'hostname': hostname,
+                    'ip': ip
+                })
+                data['nameservers'].append(hostname)
+            else:
+                data['nameserver_details'].append({
+                    'hostname': value,
+                    'ip': None
+                })
+                data['nameservers'].append(value)
+    
+    # Calculate derived fields
+    if data['dates'].get('registered'):
+        try:
+            reg_date = datetime.strptime(data['dates']['registered'], '%Y-%m-%d')
+            age_days = (datetime.now() - reg_date).days
+            data['dates']['age_days'] = age_days
+        except ValueError:
+            logger.warning(f"Could not parse registration date: {data['dates']['registered']}")
+    
+    if data['dates'].get('expires'):
+        try:
+            exp_date = datetime.strptime(data['dates']['expires'], '%Y-%m-%d')
+            days_until = (exp_date - datetime.now()).days
+            data['dates']['days_until_expiry'] = days_until
+        except ValueError:
+            logger.warning(f"Could not parse expiration date: {data['dates']['expires']}")
+    
+    return data
+
+
 class RateLimitedDAS:
     """
     Rate-limited wrapper for DAS queries.
@@ -297,87 +616,159 @@ def check_domain_registration(domain: str) -> bool:
 
 async def run_whois_check(domain: str, config: dict) -> dict:
     """
-    Run WHOIS check using DAS protocol.
+    Run WHOIS check using dual protocol approach (v1.1).
     
-    This is the v0.8.1 implementation using domreg.lt official DAS service
-    for bulk domain registration checking.
+    Strategy:
+    1. DAS Protocol (port 4343) - Fast registration status check
+    2. WHOIS Protocol (port 43) - Detailed data for registered domains only
+    
+    This maintains fast bulk scanning while getting detailed data where needed.
     
     Args:
         domain: Domain name to check
-        config: Configuration dictionary with optional 'whois' section:
+        config: Configuration dictionary with 'whois' section:
                 {
                     'whois': {
-                        'server': 'das.domreg.lt',
-                        'port': 4343,
-                        'timeout': 5.0,
-                        'rate_limit': 4
+                        'das_server': 'das.domreg.lt',
+                        'das_port': 4343,
+                        'whois_server': 'whois.domreg.lt',
+                        'whois_port': 43,
+                        'timeout': 10.0,
+                        'rate_limit': 100  # For WHOIS port 43 (per 30 min)
                     }
                 }
     
     Returns:
+        JSONB structure for v1.1:
         {
-            'check': 'whois',
-            'domain': str,
-            'success': bool,          # True if check completed (even if unregistered)
-            'registered': bool,       # True if domain is registered
-            'status': str,            # DAS status: 'available', 'registered', 'blocked', etc.
-            'error': str,             # Error message if check failed
+            'status': 'registered' | 'available' | 'error',
+            'registration': {              # Only if registered
+                'status': str,
+                'registered_date': str,
+                'expires_date': str,
+                'age_days': int,
+                'days_until_expiry': int
+            },
+            'registrar': {                 # Only if registered
+                'name': str,
+                'website': str,
+                'email': str
+            },
+            'contact': {                   # Only if registered
+                'organization': str | null,
+                'email': str | null,
+                'privacy_protected': bool
+            },
+            'nameservers': [str],          # Only if registered
             'meta': {
-                'method': 'DAS',
-                'server': str,
-                'execution_time': float
+                'method': 'DAS' | 'DAS+WHOIS',
+                'execution_time': float,
+                'whois_rate_limited': bool  # If WHOIS data unavailable due to rate limit
             }
         }
     """
     start_time = time.time()
     
-    # Get DAS configuration from config
+    # Get configuration
     whois_config = config.get('whois', {})
-    server = whois_config.get('server', 'das.domreg.lt')
-    port = whois_config.get('port', 4343)
-    timeout = whois_config.get('timeout', 5.0)
+    das_server = whois_config.get('das_server', whois_config.get('server', 'das.domreg.lt'))
+    das_port = whois_config.get('das_port', whois_config.get('port', 4343))
+    das_timeout = whois_config.get('das_timeout', whois_config.get('timeout', 5.0))
+    
+    whois_server = whois_config.get('whois_server', 'whois.domreg.lt')
+    whois_port = whois_config.get('whois_port', 43)
+    whois_timeout = whois_config.get('whois_timeout', 10.0)
+    whois_rate_limit = whois_config.get('whois_rate_limit', whois_config.get('rate_limit', 100))
+    
+    result = {
+        'meta': {
+            'method': 'DAS',
+            'execution_time': 0.0,
+            'whois_rate_limited': False
+        }
+    }
     
     try:
-        # Create DAS client (no rate limiting here - orchestrator handles batch rate limiting)
-        das = DASClient(server=server, port=port, timeout=timeout)
-        result = await das.check_domain(domain)
+        # STEP 1: DAS Check (fast registration status)
+        das = DASClient(server=das_server, port=das_port, timeout=das_timeout)
+        das_result = await das.check_domain(domain)
         
-        execution_time = time.time() - start_time
+        # Check if registered
+        is_registered = das_result.get('registered')
         
-        # Determine if check was successful
-        # Success = we got a definitive answer (registered or available)
-        # Failure = error occurred (network issue, timeout, etc.)
-        success = result.get('registered') is not None
+        if is_registered is None:
+            # DAS error - return error result
+            result['status'] = 'error'
+            result['error'] = das_result.get('error', 'DAS query failed')
+            result['meta']['execution_time'] = time.time() - start_time
+            return result
         
-        return {
-            'check': 'whois',
-            'domain': domain,
-            'success': success,
-            'registered': result.get('registered', True),  # Default to True on error (conservative)
-            'status': result.get('status', 'unknown'),
-            'error': result.get('error'),
-            'meta': {
-                'method': 'DAS',
-                'server': f"{server}:{port}",
-                'execution_time': execution_time
-            }
+        if not is_registered:
+            # Domain not registered - return early
+            result['status'] = 'available'
+            result['meta']['execution_time'] = time.time() - start_time
+            return result
+        
+        # STEP 2: WHOIS Query for detailed data (registered domains only)
+        result['status'] = 'registered'
+        result['meta']['method'] = 'DAS+WHOIS'
+        
+        whois_client = WHOISClient(
+            server=whois_server,
+            port=whois_port,
+            timeout=whois_timeout,
+            rate_limit=whois_rate_limit
+        )
+        
+        whois_data = await whois_client.query(domain)
+        
+        # Check if WHOIS query succeeded
+        if 'error' in whois_data:
+            # WHOIS failed or rate limited - return DAS data only
+            logger.warning(f"WHOIS query failed for {domain}: {whois_data.get('message')}")
+            result['meta']['whois_rate_limited'] = (whois_data.get('error') == 'rate_limit_exceeded')
+            result['meta']['whois_error'] = whois_data.get('error')
+            
+            # Return minimal data from DAS
+            result['registration'] = {'status': das_result.get('status', 'registered')}
+            result['meta']['execution_time'] = time.time() - start_time
+            return result
+        
+        # WHOIS succeeded - build complete result
+        result['registration'] = {
+            'status': whois_data.get('status', 'registered'),
+            'registered_date': whois_data.get('dates', {}).get('registered'),
+            'expires_date': whois_data.get('dates', {}).get('expires'),
+            'age_days': whois_data.get('dates', {}).get('age_days'),
+            'days_until_expiry': whois_data.get('dates', {}).get('days_until_expiry')
         }
+        
+        result['registrar'] = whois_data.get('registrar', {})
+        result['contact'] = whois_data.get('contact', {
+            'organization': None,
+            'email': None,
+            'privacy_protected': True
+        })
+        result['nameservers'] = whois_data.get('nameservers', [])
+        
+        # Optional: Include nameserver details with IPs
+        if whois_data.get('nameserver_details'):
+            result['nameserver_details'] = whois_data['nameserver_details']
+        
+        result['meta']['execution_time'] = time.time() - start_time
+        return result
         
     except Exception as e:
         execution_time = time.time() - start_time
         logger.error(f"WHOIS check failed for {domain}: {e}")
         
         return {
-            'check': 'whois',
-            'domain': domain,
-            'success': False,
-            'registered': True,  # Conservative: assume registered on error to avoid false positives
             'status': 'error',
             'error': str(e),
             'meta': {
                 'method': 'DAS',
-                'server': f"{server}:{port}",
-                'execution_time': execution_time
+                'execution_time': execution_time,
+                'whois_rate_limited': False
             }
         }
 

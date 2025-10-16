@@ -22,10 +22,22 @@ checks:
     enabled: true
     # DAS (Domain Availability Service) configuration for domreg.lt
     # DAS is the official bulk checking protocol from Lithuanian domain registry
+    das_server: das.domreg.lt
+    das_port: 4343
+    das_timeout: 5.0  # Socket timeout in seconds
+    
+    # Standard WHOIS (port 43) for detailed domain information
+    # Used only for registered domains (after DAS confirms registration)
+    whois_server: whois.domreg.lt
+    whois_port: 43
+    whois_timeout: 10.0  # Longer timeout for WHOIS (more data)
+    whois_rate_limit: 100  # Max queries per 30 minutes (strict registry limit)
+    
+    # Legacy config (backward compatible - maps to das_*)
     server: das.domreg.lt
     port: 4343
-    timeout: 5.0  # Socket timeout in seconds
-    rate_limit: 4  # Max queries per second (DAS supports "several dozens/sec")
+    timeout: 5.0
+    rate_limit: 4  # DAS rate (queries per second)
   status:
     enabled: true
   redirect:

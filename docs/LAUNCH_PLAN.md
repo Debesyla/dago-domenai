@@ -26,37 +26,50 @@ These versions complete the **Core Data** layer - the foundation that makes exte
 ## 🟣 Version 1.1 — WHOIS Profile (Complete)
 
 ### 🎯 Goal
-Complete all WHOIS-related checks from v0.8 placeholders.
+Add detailed WHOIS data retrieval using dual protocol approach (DAS + WHOIS port 43).
+
+### 📋 Strategy
+**Dual Protocol Approach:**
+1. **DAS (port 4343)** - Fast registration status checking (existing, keep it)
+2. **WHOIS (port 43)** - Detailed data for registered domains only (new)
+
+This maintains fast bulk scanning while getting detailed data where needed.
 
 ### 📋 Tasks
-1. Implement full `checks/whois_check.py`:
-   - ✅ Registration status (already working from v0.8)
-   - Registrar name and IANA ID
+1. **Implement WHOISClient class** in `checks/whois_check.py`:
+   - Add standard WHOIS protocol client (port 43)
+   - Parse .lt WHOIS response format
+   - Extract: registrar, registration date, expiration date, nameservers
+   - Rate limiting: 100 queries per 30 minutes (token bucket)
+   
+2. **Integrate dual protocol flow**:
+   - ✅ DAS check first (already working from v0.8) - fast filtering
+   - NEW: WHOIS query for registered domains only
+   - Graceful degradation if rate limited (return DAS-only data)
+   
+3. **Data extraction** from WHOIS response:
+   - Registrar name (no need to save contact)
    - Registration date
-   - Expiration date
-   - Updated date
-   - Registrant organization
-   - Registry status codes
-   - Privacy protection detection
+   - Expiration date  
+   - Nameservers
    - Domain age calculation (from registration date)
+   - Privacy protection detection (when registrant data absent)
 
-2. Add WHOIS data enrichment:
-   - Detect registrar transfers (compare WHOIS history if available)
-   - Flag expiring domains (< 30 days)
-   - Identify high-risk registrars
-
-3. Update `whois` profile in `config.yaml`:
-   - All 10 WHOIS checks marked as implemented
+4. **Update `whois` profile** in `config.yaml`:
+   - Mark WHOIS checks as implemented
+   - Add WHOIS rate limit configuration
 
 ### 🧪 Validation
-- `--profiles whois` returns complete registration data
-- Correctly identifies: registrar, dates, privacy protection
+- `--profiles whois` returns complete registration data for registered domains
+- Correctly parses: registrar, dates, nameservers
 - Domain age calculated accurately
-- Handles WHOIS rate limits gracefully
+- Rate limiting prevents IP blocking
+- Handles rate limit gracefully (returns partial data)
+- Fast bulk scanning maintained (DAS for unregistered)
 
 ### 📦 Tag
 ```bash
-git commit -m "v1.1 - complete WHOIS profile implementation"
+git commit -m "v1.1 - dual protocol WHOIS implementation (DAS + port 43)"
 git tag v1.1
 ```
 
@@ -820,6 +833,13 @@ git tag v5.2
 
 ## 🟣 Version 5.3+ — Future Ideas
 
+### WHOIS Data Enrichment (Advanced)
+- **Detect registrar transfers** - Compare WHOIS history to identify domain ownership changes
+- **Flag expiring domains** - Alert when domains expire in < 30 days
+- **Identify high-risk registrars** - Flag domains registered with known problematic registrars
+- **WHOIS history tracking** - Store and compare historical WHOIS data
+
+### Scaling & Distribution
 - **Distributed processing cluster** - Scale to millions of domains
 - **Public API** - Let others query your domain data
 - **Domain suggestion engine** - Find similar or available domains
