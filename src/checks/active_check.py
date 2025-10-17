@@ -550,7 +550,7 @@ if __name__ == "__main__":
     Test active check implementation with sample domains.
     
     Usage:
-        python -m src.checks.active_check
+        python3 -m src.checks.active_check
     """
     async def test_active_check():
         print("Testing Active Check Implementation (v0.8.2)")

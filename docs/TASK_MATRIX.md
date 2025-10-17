@@ -551,37 +551,37 @@ monitor:
 ### Example 1: Quick Filtering
 ```bash
 # Just check registration and activity
-python -m src.orchestrator domains.txt --profiles quick-check
+python3 -m src.orchestrator domains.txt --profiles quick-check
 ```
 
 ### Example 2: DNS Analysis Only
 ```bash
 # Get all DNS records
-python -m src.orchestrator domains.txt --profiles dns
+python3 -m src.orchestrator domains.txt --profiles dns
 ```
 
 ### Example 3: Security Audit
 ```bash
 # SSL + headers + security vulnerabilities
-python -m src.orchestrator domains.txt --profiles ssl,headers,security
+python3 -m src.orchestrator domains.txt --profiles ssl,headers,security
 ```
 
 ### Example 4: Custom Combination
 ```bash
 # Infrastructure + technology stack
-python -m src.orchestrator domains.txt --profiles dns,infrastructure,technology
+python3 -m src.orchestrator domains.txt --profiles dns,infrastructure,technology
 ```
 
 ### Example 5: Business Intelligence
 ```bash
 # Company info + language + compliance
-python -m src.orchestrator domains.txt --profiles whois,business,language,compliance
+python3 -m src.orchestrator domains.txt --profiles whois,business,language,compliance
 ```
 
 ### Example 6: Complete Analysis
 ```bash
 # Everything
-python -m src.orchestrator domains.txt --profiles complete
+python3 -m src.orchestrator domains.txt --profiles complete
 ```
 
 ---

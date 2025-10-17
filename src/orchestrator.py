@@ -372,17 +372,17 @@ async def main():
     """Main entry point for orchestrator"""
     # Parse command line arguments
     if len(sys.argv) < 2:
-        print("Usage: python -m src.orchestrator <domains_file> [--profiles PROFILES]")
-        print("   or: python -m src.orchestrator --domain <domain> [--profiles PROFILES]")
+        print("Usage: python3 -m src.orchestrator <domains_file> [--profiles PROFILES]")
+        print("   or: python3 -m src.orchestrator --domain <domain> [--profiles PROFILES]")
         print("\nProfiles (v0.10):")
         print("  --profiles dns,ssl,seo    : Run specific profiles")
         print("  --profiles quick-check    : Fast filtering")
         print("  --profiles standard       : General analysis (default)")
         print("  --profiles complete       : Comprehensive analysis")
         print("\nExamples:")
-        print("  python -m src.orchestrator domains.txt")
-        print("  python -m src.orchestrator domains.txt --profiles dns,ssl")
-        print("  python -m src.orchestrator --domain example.lt --profiles quick-check")
+        print("  python3 -m src.orchestrator domains.txt")
+        print("  python3 -m src.orchestrator domains.txt --profiles dns,ssl")
+        print("  python3 -m src.orchestrator --domain example.lt --profiles quick-check")
         sys.exit(1)
     
     # Load configuration

@@ -35,9 +35,9 @@
 ### Running Analysis
 ```bash
 # Profile-based execution (preferred v1.0+ method)
-python -m src.orchestrator domains.txt --profiles quick-check
-python -m src.orchestrator domains.txt --profiles dns,ssl,seo
-python -m src.orchestrator --domain example.com --profiles complete
+python3 -m src.orchestrator domains.txt --profiles quick-check
+python3 -m src.orchestrator domains.txt --profiles dns,ssl,seo
+python3 -m src.orchestrator --domain example.com --profiles complete
 
 # Export results
 # Exports automatically go to ./exports/ as JSON and/or CSV based on config.yaml

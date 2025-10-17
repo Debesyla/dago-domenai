@@ -42,19 +42,19 @@ Pre-configured combinations
 
 ```bash
 # Single profile
-python -m src.orchestrator --domain example.com --profiles whois
+python3 -m src.orchestrator --domain example.com --profiles whois
 
 # Multiple profiles (comma-separated)
-python -m src.orchestrator --domain example.com --profiles whois,dns,ssl
+python3 -m src.orchestrator --domain example.com --profiles whois,dns,ssl
 
 # Meta profile
-python -m src.orchestrator --domain example.com --profiles quick-check
+python3 -m src.orchestrator --domain example.com --profiles quick-check
 
 # Complete analysis
-python -m src.orchestrator --domain example.com --profiles complete
+python3 -m src.orchestrator --domain example.com --profiles complete
 
 # Multiple domains with profile
-python -m src.orchestrator --file domains.txt --profiles standard
+python3 -m src.orchestrator --file domains.txt --profiles standard
 ```
 
 ## Common Use Cases

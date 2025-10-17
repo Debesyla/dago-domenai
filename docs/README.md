@@ -41,25 +41,25 @@ Collect, store, and analyze information about Lithuanian domains efficiently usi
 ### Run Quick Check (Filter Domains)
 ```bash
 # Fast filtering - registration + activity
-python -m src.orchestrator domains.txt --profiles quick-check
+python3 -m src.orchestrator domains.txt --profiles quick-check
 ```
 
 ### Run Standard Analysis
 ```bash
 # Core technical checks
-python -m src.orchestrator active_domains.txt --profiles standard
+python3 -m src.orchestrator active_domains.txt --profiles standard
 ```
 
 ### Custom Analysis
 ```bash
 # Just DNS and SSL
-python -m src.orchestrator domains.txt --profiles dns,ssl
+python3 -m src.orchestrator domains.txt --profiles dns,ssl
 
 # Security audit
-python -m src.orchestrator domains.txt --profiles ssl,headers,security
+python3 -m src.orchestrator domains.txt --profiles ssl,headers,security
 
 # Business intelligence
-python -m src.orchestrator domains.txt --profiles whois,business,language
+python3 -m src.orchestrator domains.txt --profiles whois,business,language
 ```
 
 ### Query Results
@@ -197,31 +197,31 @@ To save resources:
 ### Domain Portfolio Management
 ```bash
 # Initial comprehensive scan
-python -m src.orchestrator my_domains.txt --profiles standard
+python3 -m src.orchestrator my_domains.txt --profiles standard
 
 # Daily monitoring
-python -m src.orchestrator my_domains.txt --profiles monitor
+python3 -m src.orchestrator my_domains.txt --profiles monitor
 ```
 
 ### Market Research
 ```bash
 # Discover active domains
-python -m src.orchestrator all_lt_domains.txt --profiles quick-check
+python3 -m src.orchestrator all_lt_domains.txt --profiles quick-check
 
 # Business intelligence
-python -m src.orchestrator active_domains.txt --profiles whois,business,language
+python3 -m src.orchestrator active_domains.txt --profiles whois,business,language
 ```
 
 ### Security Audit
 ```bash
 # Technical assessment
-python -m src.orchestrator company_domains.txt --profiles ssl,headers,security
+python3 -m src.orchestrator company_domains.txt --profiles ssl,headers,security
 ```
 
 ### Infrastructure Analysis
 ```bash
 # DNS + hosting + CDN detection
-python -m src.orchestrator domains.txt --profiles dns,infrastructure
+python3 -m src.orchestrator domains.txt --profiles dns,infrastructure
 ```
 
 ---

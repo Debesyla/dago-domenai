@@ -72,7 +72,7 @@ These make the actual API calls to external services.
 **Use when:** You need ownership and registration info
 
 ```bash
-python -m src.orchestrator domains.txt --profiles whois
+python3 -m src.orchestrator domains.txt --profiles whois
 ```
 
 ---
@@ -91,7 +91,7 @@ python -m src.orchestrator domains.txt --profiles whois
 **Use when:** You need network and email infrastructure info
 
 ```bash
-python -m src.orchestrator domains.txt --profiles dns
+python3 -m src.orchestrator domains.txt --profiles dns
 ```
 
 ---
@@ -110,7 +110,7 @@ python -m src.orchestrator domains.txt --profiles dns
 **Use when:** You need connectivity and redirect info
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http
+python3 -m src.orchestrator domains.txt --profiles http
 ```
 
 ---
@@ -129,7 +129,7 @@ python -m src.orchestrator domains.txt --profiles http
 **Use when:** You need SSL certificate info
 
 ```bash
-python -m src.orchestrator domains.txt --profiles ssl
+python3 -m src.orchestrator domains.txt --profiles ssl
 ```
 
 ---
@@ -149,7 +149,7 @@ These analyze data from core profiles **without making additional calls**.
 **Use when:** Security posture assessment
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,headers
+python3 -m src.orchestrator domains.txt --profiles http,headers
 ```
 
 ---
@@ -167,7 +167,7 @@ python -m src.orchestrator domains.txt --profiles http,headers
 **Use when:** On-page SEO or content analysis
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content
+python3 -m src.orchestrator domains.txt --profiles http,content
 ```
 
 ---
@@ -185,7 +185,7 @@ python -m src.orchestrator domains.txt --profiles http,content
 **Use when:** Understanding hosting architecture
 
 ```bash
-python -m src.orchestrator domains.txt --profiles dns,http,infrastructure
+python3 -m src.orchestrator domains.txt --profiles dns,http,infrastructure
 ```
 
 ---
@@ -202,7 +202,7 @@ python -m src.orchestrator domains.txt --profiles dns,http,infrastructure
 **Use when:** Tech stack fingerprinting
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content,technology
+python3 -m src.orchestrator domains.txt --profiles http,content,technology
 ```
 
 ---
@@ -219,7 +219,7 @@ python -m src.orchestrator domains.txt --profiles http,content,technology
 **Use when:** SEO audit
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content,seo
+python3 -m src.orchestrator domains.txt --profiles http,content,seo
 ```
 
 ---
@@ -240,7 +240,7 @@ Advanced insights for research and compliance.
 **Use when:** Security assessment
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,ssl,headers,technology,security
+python3 -m src.orchestrator domains.txt --profiles http,ssl,headers,technology,security
 ```
 
 ---
@@ -257,7 +257,7 @@ python -m src.orchestrator domains.txt --profiles http,ssl,headers,technology,se
 **Use when:** Business intelligence gathering
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content,business
+python3 -m src.orchestrator domains.txt --profiles http,content,business
 ```
 
 ---
@@ -274,7 +274,7 @@ python -m src.orchestrator domains.txt --profiles http,content,business
 **Use when:** Market targeting analysis
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content,language
+python3 -m src.orchestrator domains.txt --profiles http,content,language
 ```
 
 ---
@@ -291,7 +291,7 @@ python -m src.orchestrator domains.txt --profiles http,content,language
 **Use when:** Regulatory compliance audit
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,content,compliance
+python3 -m src.orchestrator domains.txt --profiles http,content,compliance
 ```
 
 ---
@@ -308,7 +308,7 @@ python -m src.orchestrator domains.txt --profiles http,content,compliance
 **Use when:** Visual analysis or change detection
 
 ```bash
-python -m src.orchestrator domains.txt --profiles http,fingerprinting
+python3 -m src.orchestrator domains.txt --profiles http,fingerprinting
 ```
 
 ---
@@ -324,7 +324,7 @@ python -m src.orchestrator domains.txt --profiles http,fingerprinting
 **Use when:** Finding related domains
 
 ```bash
-python -m src.orchestrator domains.txt --profiles dns,ssl,whois,technology,fingerprinting,clustering
+python3 -m src.orchestrator domains.txt --profiles dns,ssl,whois,technology,fingerprinting,clustering
 ```
 
 ---
@@ -341,7 +341,7 @@ Pre-configured combinations for common workflows.
 **Use case:** You have 10,000 domains and want to filter down to only registered, active ones.
 
 ```bash
-python -m src.orchestrator all_domains.txt --profiles quick-check
+python3 -m src.orchestrator all_domains.txt --profiles quick-check
 ```
 
 ---
@@ -354,7 +354,7 @@ python -m src.orchestrator all_domains.txt --profiles quick-check
 **Use case:** Standard analysis of curated domain list.
 
 ```bash
-python -m src.orchestrator my_domains.txt --profiles standard
+python3 -m src.orchestrator my_domains.txt --profiles standard
 ```
 
 ---
@@ -367,7 +367,7 @@ python -m src.orchestrator my_domains.txt --profiles standard
 **Use case:** Security and infrastructure audit.
 
 ```bash
-python -m src.orchestrator company_domains.txt --profiles technical-audit
+python3 -m src.orchestrator company_domains.txt --profiles technical-audit
 ```
 
 ---
@@ -380,7 +380,7 @@ python -m src.orchestrator company_domains.txt --profiles technical-audit
 **Use case:** Competitor analysis or market intelligence.
 
 ```bash
-python -m src.orchestrator competitors.txt --profiles business-research
+python3 -m src.orchestrator competitors.txt --profiles business-research
 ```
 
 ---
@@ -393,7 +393,7 @@ python -m src.orchestrator competitors.txt --profiles business-research
 **Use case:** Deep domain intelligence.
 
 ```bash
-python -m src.orchestrator priority_domains.txt --profiles complete
+python3 -m src.orchestrator priority_domains.txt --profiles complete
 ```
 
 ---
@@ -406,7 +406,7 @@ python -m src.orchestrator priority_domains.txt --profiles complete
 **Use case:** Recurring scans to detect when things change.
 
 ```bash
-python -m src.orchestrator monitored.txt --profiles monitor
+python3 -m src.orchestrator monitored.txt --profiles monitor
 ```
 
 ---
@@ -469,7 +469,7 @@ python -m src.orchestrator monitored.txt --profiles monitor
 ### Example 1: DNS + Infrastructure Analysis
 ```bash
 # Get all DNS records and hosting info
-python -m src.orchestrator domains.txt --profiles dns,infrastructure
+python3 -m src.orchestrator domains.txt --profiles dns,infrastructure
 ```
 
 **Why this works:** `infrastructure` uses data from `dns` (no redundant queries)
@@ -479,7 +479,7 @@ python -m src.orchestrator domains.txt --profiles dns,infrastructure
 ### Example 2: Security-Focused Scan
 ```bash
 # SSL + security headers + vulnerability checks
-python -m src.orchestrator domains.txt --profiles ssl,http,headers,security
+python3 -m src.orchestrator domains.txt --profiles ssl,http,headers,security
 ```
 
 **Why this works:** Each profile contributes specific security checks
@@ -489,7 +489,7 @@ python -m src.orchestrator domains.txt --profiles ssl,http,headers,security
 ### Example 3: Business Intelligence
 ```bash
 # Registration + company info + language targeting
-python -m src.orchestrator domains.txt --profiles whois,http,content,business,language
+python3 -m src.orchestrator domains.txt --profiles whois,http,content,business,language
 ```
 
 **Why this works:** Combines ownership data with on-page business signals
@@ -499,13 +499,13 @@ python -m src.orchestrator domains.txt --profiles whois,http,content,business,la
 ### Example 4: Progressive Analysis
 ```bash
 # Step 1: Quick filter
-python -m src.orchestrator all_domains.txt --profiles quick-check
+python3 -m src.orchestrator all_domains.txt --profiles quick-check
 
 # Step 2: DNS on active domains
-python -m src.orchestrator active_domains.txt --profiles dns
+python3 -m src.orchestrator active_domains.txt --profiles dns
 
 # Step 3: Full analysis on priority domains
-python -m src.orchestrator priority_domains.txt --profiles complete
+python3 -m src.orchestrator priority_domains.txt --profiles complete
 ```
 
 ---
@@ -513,10 +513,10 @@ python -m src.orchestrator priority_domains.txt --profiles complete
 ### Example 5: Monitoring Setup
 ```bash
 # Initial baseline with standard profile
-python -m src.orchestrator monitored.txt --profiles standard
+python3 -m src.orchestrator monitored.txt --profiles standard
 
 # Daily checks with monitor profile
-python -m src.orchestrator monitored.txt --profiles monitor --schedule daily
+python3 -m src.orchestrator monitored.txt --profiles monitor --schedule daily
 ```
 
 ---
@@ -591,49 +591,49 @@ Duration: ~60-120 seconds
 # domains_all.txt = 50,000 domains
 
 # Step 2: Quick filter to active domains
-python -m src.orchestrator domains_all.txt --profiles quick-check
+python3 -m src.orchestrator domains_all.txt --profiles quick-check
 # Result: domains_active.txt = 15,000 domains (30% active rate)
 
 # Step 3: Get DNS + infrastructure for active domains
-python -m src.orchestrator domains_active.txt --profiles dns,infrastructure
+python3 -m src.orchestrator domains_active.txt --profiles dns,infrastructure
 # Result: Know hosting patterns, geographic distribution
 
 # Step 4: Deep research on Lithuanian-hosted domains
-python -m src.orchestrator domains_lt_hosted.txt --profiles business-research
+python3 -m src.orchestrator domains_lt_hosted.txt --profiles business-research
 # Result: Company info, language targeting, business intelligence
 ```
 
 ### Workflow 2: Security Audit
 ```bash
 # Quick filter to registered domains
-python -m src.orchestrator company_domains.txt --profiles quick-check
+python3 -m src.orchestrator company_domains.txt --profiles quick-check
 
 # Full technical audit
-python -m src.orchestrator company_domains_active.txt --profiles technical-audit
+python3 -m src.orchestrator company_domains_active.txt --profiles technical-audit
 
 # Deep security scan on critical domains
-python -m src.orchestrator critical_domains.txt --profiles ssl,headers,security,technology
+python3 -m src.orchestrator critical_domains.txt --profiles ssl,headers,security,technology
 ```
 
 ### Workflow 3: Competitor Analysis
 ```bash
 # Get complete picture of 5 competitors
-python -m src.orchestrator competitors.txt --profiles complete
+python3 -m src.orchestrator competitors.txt --profiles complete
 
 # Find their portfolio through clustering
-python -m src.orchestrator discovered_related.txt --profiles dns,ssl,clustering
+python3 -m src.orchestrator discovered_related.txt --profiles dns,ssl,clustering
 ```
 
 ### Workflow 4: Portfolio Monitoring
 ```bash
 # Initial comprehensive baseline
-python -m src.orchestrator portfolio.txt --profiles standard
+python3 -m src.orchestrator portfolio.txt --profiles standard
 
 # Weekly infrastructure check
-python -m src.orchestrator portfolio.txt --profiles dns,infrastructure
+python3 -m src.orchestrator portfolio.txt --profiles dns,infrastructure
 
 # Daily uptime monitoring
-python -m src.orchestrator portfolio.txt --profiles monitor
+python3 -m src.orchestrator portfolio.txt --profiles monitor
 ```
 
 ---
@@ -666,7 +666,7 @@ meta_profiles:
 
 Then use:
 ```bash
-python -m src.orchestrator domains.txt --profiles my-custom-scan
+python3 -m src.orchestrator domains.txt --profiles my-custom-scan
 ```
 
 ---

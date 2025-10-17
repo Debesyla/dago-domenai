@@ -15,7 +15,7 @@
 
 When you run:
 ```bash
-python -m src.orchestrator domains.txt --profiles whois,dns,ssl
+python3 -m src.orchestrator domains.txt --profiles whois,dns,ssl
 ```
 
 Here's what happens for each domain:
@@ -109,7 +109,7 @@ if 'error' in whois_data:
 
 ### Setup
 ```bash
-python -m src.orchestrator domains.txt --profiles whois,dns,ssl
+python3 -m src.orchestrator domains.txt --profiles whois,dns,ssl
 ```
 
 ### Timeline
@@ -187,7 +187,7 @@ for domain in domains:
 ### Option A: Continuous Scanning (Recommended)
 ```bash
 # Just start the scan and let it run
-python -m src.orchestrator domains.txt --profiles whois,dns,ssl
+python3 -m src.orchestrator domains.txt --profiles whois,dns,ssl
 
 # What happens:
 # - First 100 domains: Full WHOIS data
@@ -207,7 +207,7 @@ psql $DATABASE_URL -c "
 " > missing_whois.txt
 
 # Re-scan later (with fresh rate limit):
-python -m src.orchestrator missing_whois.txt --profiles whois
+python3 -m src.orchestrator missing_whois.txt --profiles whois
 ```
 
 ### Option C: Slower Scan to Stay Under Limit

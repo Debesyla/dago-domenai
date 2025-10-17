@@ -24,7 +24,7 @@ pip install -r requirements.txt
 ./db/setup.sh
 
 # 3. Run analysis
-python -m src.orchestrator domains.txt --profiles quick-check
+python3 -m src.orchestrator domains.txt --profiles quick-check
 ```
 
 ## Features
@@ -39,16 +39,16 @@ python -m src.orchestrator domains.txt --profiles quick-check
 
 ```bash
 # Quick filtering (registration + activity checks)
-python -m src.orchestrator domains.txt --profiles quick-check
+python3 -m src.orchestrator domains.txt --profiles quick-check
 
 # Standard analysis (DNS, SSL, redirects, robots)
-python -m src.orchestrator domains.txt --profiles standard
+python3 -m src.orchestrator domains.txt --profiles standard
 
 # Custom profile combination
-python -m src.orchestrator domains.txt --profiles dns,ssl,seo-basic
+python3 -m src.orchestrator domains.txt --profiles dns,ssl,seo-basic
 
 # Single domain check
-python -m src.orchestrator --domain example.com --profiles complete
+python3 -m src.orchestrator --domain example.com --profiles complete
 ```
 
 ## Documentation

@@ -918,7 +918,7 @@ if __name__ == "__main__":
     Test DAS implementation with sample domains.
     
     Usage:
-        python -m src.checks.whois_check
+        python3 -m src.checks.whois_check
     """
     async def test_das():
         print("Testing DAS Protocol Implementation")

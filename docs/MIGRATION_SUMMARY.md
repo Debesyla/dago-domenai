@@ -100,10 +100,10 @@ The database is now fully configured for v0.10 profile system. You can start usi
 
 ```bash
 # Test with a single domain
-python -m src.orchestrator --domain example.lt --profiles quick-check
+python3 -m src.orchestrator --domain example.lt --profiles quick-check
 
 # Analyze multiple domains
-python -m src.orchestrator domains.txt --profiles standard
+python3 -m src.orchestrator domains.txt --profiles standard
 
 # Run tests
 python3 test_v10.py
@@ -113,7 +113,7 @@ python3 test_v10.py
 
 1. ✅ Database migrated successfully
 2. ⏭️ Test profile system: `python3 test_v10.py`
-3. ⏭️ Run first analysis: `python -m src.orchestrator --domain example.lt --profiles quick-check`
+3. ⏭️ Run first analysis: `python3 -m src.orchestrator --domain example.lt --profiles quick-check`
 4. ⏭️ Monitor usage: `psql $DATABASE_URL -c "SELECT * FROM profile_execution_stats;"`
 
 ---
