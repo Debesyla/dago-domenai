@@ -105,7 +105,8 @@ def sample_domain_result() -> Dict[str, Any]:
 def all_profile_names() -> list:
     """List of all profile names in the system"""
     return [
-        # Core profiles
+        # Core profiles (5)
+        "quick-whois",
         "whois",
         "dns",
         "http",
@@ -136,7 +137,7 @@ def all_profile_names() -> list:
 @pytest.fixture
 def core_profile_names() -> list:
     """Core profile names"""
-    return ["whois", "dns", "http", "ssl"]
+    return ["quick-whois", "whois", "dns", "http", "ssl"]
 
 
 @pytest.fixture

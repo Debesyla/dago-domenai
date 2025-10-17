@@ -20,7 +20,7 @@ from src.checks.redirect_check import run_redirect_check
 from src.checks.robots_check import run_robots_check
 from src.checks.sitemap_check import run_sitemap_check
 from src.checks.ssl_check import run_ssl_check
-from src.checks.whois_check import run_whois_check, check_domain_registration
+from src.checks.whois_check import run_whois_check, run_das_check, check_domain_registration
 from src.checks.active_check import run_active_check, check_domain_active
 from src.utils.db import save_result, init_db, update_domain_flags
 from src.utils.export import ResultExporter
@@ -75,6 +75,7 @@ def determine_checks_to_run(config: dict, profiles: Optional[List[str]] = None, 
         
         # Build checks dict based on profiles
         checks = {
+            'quick-whois': 'quick-whois' in execution_order,
             'whois': 'whois' in execution_order,
             'http': 'http' in execution_order,
             'ssl': 'ssl' in execution_order,
@@ -153,8 +154,33 @@ async def process_domain(domain: str, config: dict, logger, profiles: Optional[L
     db_config = get_database_config(config)
     
     # STEP 1: WHOIS Check (determines if domain is registered)
-    # Only run if whois check is enabled
-    if checks_to_run.get('whois', True):
+    # Support both quick-whois (DAS only) and whois (full)
+    is_registered = True  # Default assumption
+    
+    if checks_to_run.get('quick-whois', False):
+        # Quick WHOIS check (DAS only) - ultra-fast
+        quick_whois_result = await run_das_check(domain, config)
+        add_check_result(result, 'quick-whois', quick_whois_result)
+        
+        # Determine registration status from DAS check
+        if quick_whois_result.get('status') != 'error':
+            is_registered = quick_whois_result.get('status') == 'registered'
+        
+        # Update database with registration status
+        if db_config.get('save_results', True):
+            update_domain_flags(db_config['postgres_url'], domain, is_registered=is_registered)
+        
+        # EARLY BAILOUT: If not registered, skip all other checks
+        if not is_registered:
+            logger.info(f"⏭️  Domain {domain} is NOT registered - skipping all checks")
+            execution_time = time.time() - start_time
+            update_result_meta(result, execution_time, 'skipped', errors)
+            result['meta']['skip_reason'] = 'unregistered'
+            logger.info(f"Completed analysis for: {domain} (skipped - unregistered)")
+            return result
+            
+    elif checks_to_run.get('whois', True):
+        # Full WHOIS check (DAS + WHOIS port 43) - complete data
         whois_result = await run_whois_check(domain, config)
         add_check_result(result, 'whois', whois_result)
         is_registered = whois_result.get('registered', True)
@@ -171,8 +197,6 @@ async def process_domain(domain: str, config: dict, logger, profiles: Optional[L
             result['meta']['skip_reason'] = 'unregistered'
             logger.info(f"Completed analysis for: {domain} (skipped - unregistered)")
             return result
-    else:
-        is_registered = True  # Assume registered if not checking
     
     # STEP 2: Run Status and Redirect checks to determine if active
     status_result = None

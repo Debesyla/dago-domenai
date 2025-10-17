@@ -20,20 +20,28 @@ network:
 checks:
   whois:
     enabled: true
-    # DAS (Domain Availability Service) configuration for domreg.lt
-    # DAS is the official bulk checking protocol from Lithuanian domain registry
-    das_server: das.domreg.lt
-    das_port: 4343
-    das_timeout: 5.0  # Socket timeout in seconds
     
-    # Standard WHOIS (port 43) for detailed domain information
-    # Used only for registered domains (after DAS confirms registration)
+    # DAS (Domain Availability Service) Configuration
+    # Used by: quick-whois profile
+    # Purpose: Ultra-fast registration status checking
+    # Performance: ~0.02s per domain
+    # Rate limit: 4 queries/sec (very generous)
+    das:
+      server: das.domreg.lt
+      port: 4343
+      timeout: 5.0  # Socket timeout in seconds
+    
+    # WHOIS Port 43 Configuration  
+    # Used by: whois profile (in addition to DAS)
+    # Purpose: Complete registration data (registrar, dates, contacts, nameservers)
+    # Performance: ~0.10s per domain
+    # Rate limit: 100 queries per 30 minutes (STRICT - enforced by Lithuanian registry)
     whois_server: whois.domreg.lt
     whois_port: 43
     whois_timeout: 10.0  # Longer timeout for WHOIS (more data)
-    whois_rate_limit: 100  # Max queries per 30 minutes (strict registry limit)
+    whois_rate_limit: 100  # Max queries per 30 minutes (strict IP-based blocking)
     
-    # Legacy config (backward compatible - maps to das_*)
+    # Legacy backward compatibility (maps to das config)
     server: das.domreg.lt
     port: 4343
     timeout: 5.0
@@ -57,7 +65,7 @@ export:
   directory: ./exports
   include_summary: true  # Generate summary statistics file
 
-# v0.10 - Composable Profile System
+# v1.1.1 - Composable Profile System with Quick WHOIS
 # Profiles define which checks to run, organized by data source
 # Users can combine profiles: --profiles dns,ssl,seo
 profiles:
@@ -66,13 +74,20 @@ profiles:
   
   # Enable/disable check modules per profile
   # Core profiles make external API calls
+  
+  quick-whois:
+    enabled: true
+    checks:
+      - registration_status  # ✅ v1.1.1 - DAS only
+  
   whois:
     enabled: true
     checks:
-      - registration_status  # ✅ v0.8.1
-      - registrar_info       # 🔄 Planned
-      - registration_dates   # 🔄 Planned
-      - domain_age           # 🔄 Planned
+      - registration_status  # ✅ v1.1 - DAS + WHOIS
+      - registrar_info       # ✅ v1.1
+      - registration_dates   # ✅ v1.1
+      - nameservers          # ✅ v1.1
+      - contacts             # ✅ v1.1 (if public)
   
   dns:
     enabled: true

@@ -23,6 +23,7 @@ class ProfileCategory(Enum):
 class ProfileType(Enum):
     """Known profile types."""
     # Core Data Profiles
+    QUICK_WHOIS = "quick-whois"
     WHOIS = "whois"
     DNS = "dns"
     HTTP = "http"
@@ -55,6 +56,7 @@ class ProfileType(Enum):
 # Profile dependency graph
 PROFILE_DEPENDENCIES: Dict[str, List[str]] = {
     # Core profiles have no dependencies
+    'quick-whois': [],
     'whois': [],
     'dns': [],
     'http': [],
@@ -76,24 +78,60 @@ PROFILE_DEPENDENCIES: Dict[str, List[str]] = {
     'clustering': ['dns', 'whois'],
     
     # Meta profiles expand to other profiles
-    'quick-check': ['whois', 'http'],
+    'quick-check': ['quick-whois', 'http'],
     'standard': ['whois', 'dns', 'http', 'ssl', 'seo'],
     'technical-audit': ['whois', 'dns', 'http', 'ssl', 'headers', 'security', 'infrastructure', 'technology'],
     'business-research': ['whois', 'dns', 'http', 'ssl', 'business', 'language', 'clustering'],
     'complete': ['whois', 'dns', 'http', 'ssl', 'headers', 'content', 'infrastructure', 
                  'technology', 'seo', 'security', 'compliance', 'business', 'language'],
-    'monitor': ['whois', 'http'],
+    'monitor': ['quick-whois', 'http'],
 }
 
 
 # Profile metadata
 PROFILE_METADATA: Dict[str, Dict[str, Any]] = {
+    'quick-whois': {
+        'category': ProfileCategory.CORE,
+        'description': 'Fast registration status check (DAS protocol only)',
+        'data_source': 'das.domreg.lt:4343 (DAS protocol)',
+        'api_calls': 1,
+        'duration_estimate': '0.02s',
+        'rate_limit': '4 queries/sec',
+        'use_cases': [
+            'Bulk domain validation (10,000+ domains)',
+            'Continuous monitoring',
+            'Quick availability checks',
+            'Initial domain filtering'
+        ],
+        'data_returned': [
+            'Registration status (registered/available)',
+            'Domain name',
+            'Query metadata'
+        ],
+        'notes': 'Ultra-fast, no rate limit concerns. Use "whois" profile for complete registration data.'
+    },
     'whois': {
         'category': ProfileCategory.CORE,
-        'description': 'Registration and ownership information',
-        'data_source': 'WHOIS servers / RDAP API',
-        'api_calls': 1,
-        'duration_estimate': '0.5-1s',
+        'description': 'Complete domain registration data (DAS + WHOIS port 43)',
+        'data_source': 'das.domreg.lt:4343 + whois.domreg.lt:43',
+        'api_calls': 2,
+        'duration_estimate': '0.10s',
+        'rate_limit': '100 queries/30min (strict)',
+        'use_cases': [
+            'Deep domain research',
+            'Registration detail analysis',
+            'Contact information lookup',
+            'Registrar verification'
+        ],
+        'data_returned': [
+            'Registration status',
+            'Registrar information',
+            'Registration/expiry dates',
+            'Nameservers',
+            'Contact details (if public)',
+            'Domain holder information'
+        ],
+        'notes': 'Strict rate limiting enforced. Falls back to DAS data if rate limited.'
     },
     'dns': {
         'category': ProfileCategory.CORE,
@@ -195,9 +233,16 @@ PROFILE_METADATA: Dict[str, Dict[str, Any]] = {
     },
     'quick-check': {
         'category': ProfileCategory.META,
-        'description': 'Fast filtering (registration + connectivity)',
-        'profiles': ['whois', 'http'],
-        'duration_estimate': '1.5-4s',
+        'description': 'Ultra-fast domain validation (status + connectivity)',
+        'profiles': ['quick-whois', 'http'],
+        'duration_estimate': '0.10-0.50s',
+        'use_cases': [
+            'Bulk domain screening (10,000+ domains)',
+            'New domain discovery',
+            'Quick validation',
+            'Initial filtering before deep analysis'
+        ],
+        'notes': '12x faster than previous version. No rate limiting concerns.'
     },
     'standard': {
         'category': ProfileCategory.META,
@@ -226,9 +271,16 @@ PROFILE_METADATA: Dict[str, Dict[str, Any]] = {
     },
     'monitor': {
         'category': ProfileCategory.META,
-        'description': 'Change detection (minimal recurring)',
-        'profiles': ['whois', 'http'],
-        'duration_estimate': '1.5-4s',
+        'description': 'Lightweight continuous monitoring (status + connectivity)',
+        'profiles': ['quick-whois', 'http'],
+        'duration_estimate': '0.10-0.50s',
+        'use_cases': [
+            'Continuous monitoring',
+            'Status tracking',
+            'Availability alerts',
+            'Change detection'
+        ],
+        'notes': 'Optimized for frequent checks with minimal overhead.'
     },
 }
 

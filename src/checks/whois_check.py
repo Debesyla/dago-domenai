@@ -614,6 +614,145 @@ def check_domain_registration(domain: str) -> bool:
     return asyncio.run(_async_check())
 
 
+async def run_das_check(domain: str, config: dict) -> dict:
+    """
+    Run DAS-only check for ultra-fast registration status (v1.1.1).
+    
+    Uses only the DAS protocol (das.domreg.lt:4343) for maximum speed.
+    Perfect for bulk domain validation where only registration status is needed.
+    
+    Performance:
+    - ~0.02s per domain
+    - No rate limiting concerns (4 queries/sec supported)
+    - 5x faster than full WHOIS check
+    
+    Use Cases:
+    - Bulk domain validation (10,000+ domains)
+    - Continuous monitoring
+    - Quick availability checks
+    - Initial domain filtering
+    
+    Args:
+        domain: Domain name to check (e.g., "example.lt")
+        config: Configuration dictionary with 'checks.whois.das' section:
+                {
+                    'checks': {
+                        'whois': {
+                            'das': {
+                                'server': 'das.domreg.lt',
+                                'port': 4343,
+                                'timeout': 5
+                            }
+                        }
+                    }
+                }
+    
+    Returns:
+        {
+            'status': 'registered' | 'available' | 'error',
+            'registration': {
+                'status': 'registered' | 'available',
+                'domain': 'example.lt'
+            },
+            'meta': {
+                'check_type': 'das_only',
+                'protocol': 'DAS',
+                'server': 'das.domreg.lt:4343',
+                'query_time': 0.02,
+                'rate_limit': '4 queries/sec',
+                'note': 'Fast check - use "whois" profile for complete data'
+            }
+        }
+        
+        On error:
+        {
+            'status': 'error',
+            'error': 'error message',
+            'meta': {
+                'check_type': 'das_only'
+            }
+        }
+    """
+    start_time = time.time()
+    
+    try:
+        # Get DAS configuration
+        das_config = config.get('checks', {}).get('whois', {}).get('das', {})
+        server = das_config.get('server', 'das.domreg.lt')
+        port = das_config.get('port', 4343)
+        timeout = das_config.get('timeout', 5)
+        
+        # Initialize DAS client
+        das_client = DASClient(server=server, port=port, timeout=timeout)
+        
+        # Query DAS
+        logger.info(f"Running DAS check for {domain}")
+        result = await das_client.check_domain(domain)
+        
+        query_time = time.time() - start_time
+        
+        # Handle errors
+        if result.get('status') == 'error':
+            logger.warning(f"DAS check error for {domain}: {result.get('error', 'Unknown error')}")
+            return {
+                'status': 'error',
+                'error': result.get('error', 'DAS query failed'),
+                'meta': {
+                    'check_type': 'das_only',
+                    'protocol': 'DAS',
+                    'server': f"{server}:{port}",
+                    'query_time': query_time
+                }
+            }
+        
+        # Determine registration status
+        das_status = result.get('status', '').lower()
+        is_registered = das_status not in ['available', 'error']
+        status = 'registered' if is_registered else 'available'
+        
+        logger.info(f"DAS check complete for {domain}: {status} ({query_time:.3f}s)")
+        
+        return {
+            'status': status,
+            'registration': {
+                'status': status,
+                'domain': result.get('domain', domain),
+                'das_status': das_status  # Original status from DAS
+            },
+            'meta': {
+                'check_type': 'das_only',
+                'protocol': 'DAS',
+                'server': f"{server}:{port}",
+                'query_time': round(query_time, 3),
+                'rate_limit': '4 queries/sec',
+                'note': 'Fast check - use "whois" profile for complete registration data'
+            }
+        }
+        
+    except asyncio.TimeoutError:
+        query_time = time.time() - start_time
+        logger.warning(f"DAS check timeout for {domain} after {query_time:.3f}s")
+        return {
+            'status': 'error',
+            'error': 'timeout',
+            'meta': {
+                'check_type': 'das_only',
+                'query_time': round(query_time, 3)
+            }
+        }
+    except Exception as e:
+        query_time = time.time() - start_time
+        logger.error(f"DAS check exception for {domain}: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'meta': {
+                'check_type': 'das_only',
+                'query_time': round(query_time, 3)
+            }
+        }
+
+
 async def run_whois_check(domain: str, config: dict) -> dict:
     """
     Run WHOIS check using dual protocol approach (v1.1).

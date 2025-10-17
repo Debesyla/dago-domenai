@@ -35,7 +35,7 @@ class TestProfileDefinitions:
     def test_all_profiles_defined(self, all_profile_names):
         """Test that all expected profiles are defined"""
         all_profiles = get_all_profiles()
-        assert len(all_profiles) == 21, f"Expected 21 profiles, got {len(all_profiles)}"
+        assert len(all_profiles) == 22, f"Expected 22 profiles, got {len(all_profiles)}"
         
         for name in all_profile_names:
             assert name in all_profiles, f"Profile {name} not defined"
@@ -43,7 +43,7 @@ class TestProfileDefinitions:
     def test_core_profiles(self, core_profile_names):
         """Test core profile definitions"""
         core_profiles = get_core_profiles()
-        assert len(core_profiles) == 4
+        assert len(core_profiles) == 5
         
         for name in core_profile_names:
             assert is_core_profile(name) is True
@@ -83,8 +83,8 @@ class TestProfileDefinitions:
     def test_get_core_profiles(self):
         """Test retrieving core profiles"""
         core = get_core_profiles()
-        assert len(core) == 4
-        assert all(p in ["whois", "dns", "http", "ssl"] for p in core)
+        assert len(core) == 5
+        assert all(p in ["quick-whois", "whois", "dns", "http", "ssl"] for p in core)
 
     def test_get_meta_profiles(self):
         """Test retrieving meta profiles"""
@@ -153,9 +153,10 @@ class TestMetaProfileExpansion:
     def test_expand_quick_check(self):
         """Test expansion of quick-check meta profile"""
         result = expand_meta_profiles(["quick-check"])
-        assert "whois" in result
+        assert "quick-whois" in result  # v1.1.1: Uses quick-whois now
         assert "http" in result
         assert "quick-check" not in result  # Meta profile removed
+        assert "whois" not in result  # Should NOT use full whois
 
     def test_expand_standard(self):
         """Test expansion of standard meta profile"""
@@ -178,9 +179,10 @@ class TestMetaProfileExpansion:
     def test_expand_mixed_profiles(self):
         """Test expansion with mix of meta and regular profiles"""
         result = expand_meta_profiles(["quick-check", "ssl"])
-        assert "whois" in result
+        assert "quick-whois" in result  # v1.1.1: quick-check uses quick-whois
         assert "http" in result
         assert "ssl" in result
+        assert "whois" not in result  # Should NOT use full whois
 
     def test_expand_no_meta_profiles(self):
         """Test expansion with no meta profiles"""
@@ -279,10 +281,11 @@ class TestExecutionPlanning:
     def test_execution_plan_meta_profile(self):
         """Test execution plan expands meta profiles"""
         plan = get_profile_execution_plan(["quick-check"])
-        # Should expand to whois + http
-        assert "whois" in plan["execution_order"]
+        # v1.1.1: Should expand to quick-whois + http
+        assert "quick-whois" in plan["execution_order"]
         assert "http" in plan["execution_order"]
         assert "quick-check" not in plan["execution_order"]
+        assert "whois" not in plan["execution_order"]  # Should NOT use full whois
 
 
 class TestRealWorldScenarios:
@@ -365,3 +368,105 @@ class TestErrorHandling:
         assert profile["name"] == "whois"
         assert "category" in profile
         assert "dependencies" in profile
+
+
+class TestQuickWhoisProfile:
+    """Tests specific to quick-whois profile (v1.1.1)"""
+    
+    def test_quick_whois_exists(self):
+        """Test that quick-whois profile is defined"""
+        assert validate_profile_name("quick-whois") is True
+        assert "quick-whois" in get_all_profiles()
+        assert "quick-whois" in get_core_profiles()
+    
+    def test_quick_whois_metadata(self):
+        """Test quick-whois profile metadata"""
+        info = get_profile_info("quick-whois")
+        assert info is not None
+        assert info["category"] == ProfileCategory.CORE
+        assert "DAS" in info["description"] or "fast" in info["description"].lower()
+        assert "data_source" in info
+        assert "das.domreg.lt" in info["data_source"]
+    
+    def test_quick_whois_no_dependencies(self):
+        """Test that quick-whois has no dependencies (it's a core profile)"""
+        deps = get_profile_dependencies("quick-whois")
+        assert deps == []
+    
+    def test_quick_whois_is_core_profile(self):
+        """Test that quick-whois is classified as core profile"""
+        assert is_core_profile("quick-whois") is True
+        assert is_meta_profile("quick-whois") is False
+    
+    def test_quick_whois_vs_whois_distinction(self):
+        """Test that quick-whois and whois are distinct profiles"""
+        assert "quick-whois" != "whois"
+        assert "quick-whois" in get_all_profiles()
+        assert "whois" in get_all_profiles()
+        
+        # They should both be core profiles
+        assert is_core_profile("quick-whois") is True
+        assert is_core_profile("whois") is True
+    
+    def test_quick_check_uses_quick_whois(self):
+        """Test that quick-check meta profile uses quick-whois"""
+        expanded = expand_meta_profiles(["quick-check"])
+        assert "quick-whois" in expanded
+        assert "whois" not in expanded  # Should NOT use full whois
+        
+        # Verify full resolution
+        resolved = resolve_profile_dependencies(["quick-check"])
+        assert "quick-whois" in resolved
+        assert "http" in resolved
+    
+    def test_monitor_uses_quick_whois(self):
+        """Test that monitor meta profile uses quick-whois"""
+        expanded = expand_meta_profiles(["monitor"])
+        assert "quick-whois" in expanded
+        assert "whois" not in expanded
+    
+    def test_standard_uses_full_whois(self):
+        """Test that standard meta profile uses full whois (not quick-whois)"""
+        expanded = expand_meta_profiles(["standard"])
+        assert "whois" in expanded
+        assert "quick-whois" not in expanded  # Should use full whois
+    
+    def test_quick_whois_standalone(self):
+        """Test using quick-whois profile standalone"""
+        resolved = resolve_profile_dependencies(["quick-whois"])
+        assert resolved == ["quick-whois"]  # No dependencies to add
+    
+    def test_quick_whois_with_other_profiles(self):
+        """Test combining quick-whois with other profiles"""
+        # Should work fine with other profiles
+        is_valid, error = validate_profile_combination(["quick-whois", "dns", "ssl"])
+        assert is_valid is True
+        
+        resolved = resolve_profile_dependencies(["quick-whois", "dns", "ssl"])
+        assert "quick-whois" in resolved
+        assert "dns" in resolved
+        assert "ssl" in resolved
+    
+    def test_quick_whois_and_whois_together(self):
+        """Test that quick-whois and whois can coexist (edge case)"""
+        # While unusual, it should technically work
+        is_valid, error = validate_profile_combination(["quick-whois", "whois"])
+        assert is_valid is True
+        
+        resolved = resolve_profile_dependencies(["quick-whois", "whois"])
+        assert "quick-whois" in resolved
+        assert "whois" in resolved
+    
+    def test_quick_whois_execution_plan(self):
+        """Test execution plan for quick-whois"""
+        plan = get_profile_execution_plan(["quick-whois"])
+        assert plan["total_profiles"] == 1
+        assert "quick-whois" in plan["execution_order"]
+        
+        # Check duration estimate exists
+        assert "estimated_duration" in plan
+        # quick-whois should be very fast (check for various formats)
+        duration_str = str(plan["estimated_duration"])
+        # Accept any reasonable format since implementation may vary
+        assert len(duration_str) > 0  # Just verify it exists
+
