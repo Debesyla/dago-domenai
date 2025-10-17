@@ -27,3 +27,4 @@ exports/*
 
 # Other
 *.sqlite3
+domains.txt
