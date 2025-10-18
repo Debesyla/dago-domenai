@@ -1,10 +1,11 @@
-# v0.10 Profile System - Quick Reference
+# v1.1.1 Profile System - Quick Reference
 
 ## Profile Categories
 
-### 🔵 Core Profiles (4)
+### 🔵 Core Profiles (5)
 Direct data retrieval from external sources
-- **whois** - Registration & ownership info
+- **quick-whois** - Fast registration check (DAS protocol, ~0.02s)
+- **whois** - Full registration data (DAS + WHOIS port 43, ~0.10s)
 - **dns** - DNS records (A, AAAA, MX, TXT, etc.)
 - **http** - HTTP response & headers
 - **ssl** - SSL/TLS certificate info
@@ -31,12 +32,16 @@ Pre-configured combinations
 
 | Profile | Profiles Included | Use Case | Duration |
 |---------|------------------|----------|----------|
-| **quick-check** | whois, http | Fast domain check | 1.5-4s |
-| **standard** | core + seo | Standard audit | 4-12s |
+| **quick-check** | quick-whois, http | Fast domain filtering | 0.1-0.5s |
+| **standard** | whois, dns, http, ssl, seo | Standard audit | 4-12s |
 | **technical-audit** | 8 tech profiles | Deep technical analysis | 10-25s |
 | **business-research** | 7 business profiles | Competitor research | 8-20s |
-| **complete** | All 13 non-meta | Full analysis | 20-45s |
-| **monitor** | whois, http | Continuous monitoring | 1.5-4s |
+| **complete** | All non-meta profiles | Full analysis | 20-45s |
+| **monitor** | quick-whois, http | Continuous monitoring | 0.1-0.5s |
+
+**v1.1.1 Changes:**
+- `quick-check` and `monitor` now use `quick-whois` instead of `whois` (12x faster)
+- `standard` still uses full `whois` for detailed data
 
 ## CLI Usage
 
@@ -241,7 +246,7 @@ All checks should return PASS
 
 ```
 Core (no dependencies):
-  - whois, dns, http, ssl
+  - quick-whois, whois, dns, http, ssl
 
 Analysis:
   - headers → http
@@ -261,11 +266,34 @@ Intelligence:
 Meta (see table above for constituent profiles)
 ```
 
+## WHOIS Protocol Choice (v1.1.1)
+
+**quick-whois** vs **whois** - When to use which?
+
+| Feature | quick-whois | whois |
+|---------|-------------|-------|
+| **Protocol** | DAS only | DAS + WHOIS port 43 |
+| **Speed** | ~0.02s | ~0.10s |
+| **Rate Limit** | 4/sec (relaxed) | 100/30min (strict) |
+| **Data Returned** | Registration status only | Full data (registrar, contacts, dates, nameservers) |
+| **Best For** | Bulk filtering, monitoring | Detailed analysis, research |
+
+**Recommendations:**
+- Use `quick-whois` for: Initial domain filtering, change monitoring, bulk scans
+- Use `whois` for: Detailed ownership research, contact info, compliance checks
+- Meta profiles: `quick-check` and `monitor` use quick-whois; `standard` uses full whois
+
 ## More Information
 
-- Full documentation: `docs/V10_COMPLETION.md`
-- Migration guide: `db/migrations/README.md`
-- Implementation details: `V10_FINAL_SUMMARY.md`
+- **Full Profile Guide**: [TASK_PROFILES.md](TASK_PROFILES.md)
+- **Check Mappings**: [TASK_MATRIX.md](TASK_MATRIX.md)
+- **Deployment**: [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- **Roadmap**: [LAUNCH_PLAN.md](LAUNCH_PLAN.md)
+
+---
+
+**Last Updated:** October 18, 2025  
+**Version:** v1.1.1
 
 ---
 

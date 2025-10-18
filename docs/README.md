@@ -17,22 +17,20 @@ Collect, store, and analyze information about Lithuanian domains efficiently usi
 
 ## 📚 Documentation Index
 
-### Getting Started
-- **[SETUP.md](SETUP.MD)** - Installation and environment setup
-- **[CONTEXT.md](CONTEXT.md)** - Project context and background
-- **[LAUNCH_PLAN.md](LAUNCH_PLAN.md)** - Version roadmap (v0.1 → v3.x)
+### 🚀 Getting Started
+- **[README.md](README.md)** (this file) - Project overview and quick start
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete production deployment guide
 
-### User Guides
-- **[TASK_PROFILES.md](TASK_PROFILES.md)** - Guide to scan profiles (quick-check, basic-scan, full-scan, research-scan, monitor)
+### 📖 User Guides  
+- **[TASK_PROFILES.md](TASK_PROFILES.md)** - Comprehensive guide to scan profiles (quick-whois, quick-check, standard, complete, etc.)
+- **[PROFILE_QUICK_REFERENCE.md](PROFILE_QUICK_REFERENCE.md)** - Quick reference card for profiles
 
-### Technical Reference
+### 🔧 Technical Reference
 - **[TASK_MATRIX.md](TASK_MATRIX.md)** - Complete check-to-profile mapping matrix
-- **[PLANNED_CHECKS.md](PLANNED_CHECKS.md)** - Catalog of all possible domain checks organized by tier
+- **[PLANNED_CHECKS.md](PLANNED_CHECKS.md)** - Catalog of all domain checks organized by profile
 
-### Design Documents
-- **[V08_OPTIMIZATION_DESIGN.md](V08_OPTIMIZATION_DESIGN.md)** - Check process optimization with early bailout
-- **[V09_REDIRECT_CAPTURE_DESIGN.md](V09_REDIRECT_CAPTURE_DESIGN.md)** - Automatic domain discovery via redirects
-- **[V10_TASK_PROFILES_DESIGN.md](V10_TASK_PROFILES_DESIGN.md)** - Task profile system architecture
+### 🗺️ Project Roadmap
+- **[LAUNCH_PLAN.md](LAUNCH_PLAN.md)** - Version roadmap and feature timeline
 
 ---
 
@@ -105,25 +103,35 @@ See **[TASK_PROFILES.md](TASK_PROFILES.md)** for detailed guide.
 
 ## 🗺️ Project Status
 
-**Current Version:** v0.6.0 (Database persistence complete)
+**Current Version:** v1.1.1 (Quick-WHOIS profile split)
 
-**Implemented Checks (6):**
-- ✅ WHOIS registration status (placeholder)
-- ✅ Active status detection (placeholder)
-- ✅ HTTP status code
-- ✅ Redirect chain tracking
+**Implemented Features:**
+- ✅ Composable profile system (v0.10)
+- ✅ Early bailout optimization (v0.8)
+- ✅ Domain discovery via redirects (v0.9)
+- ✅ Dual WHOIS protocol support (v1.1)
+  - DAS protocol: Fast bulk checking (4 queries/sec)
+  - WHOIS port 43: Detailed registration data (rate limited)
+- ✅ Profile-aware check orchestration
+- ✅ PostgreSQL persistence with JSONB
+- ✅ Async/await architecture
+
+**Implemented Checks (7):**
+- ✅ Quick-WHOIS (DAS-only, fast registration check)
+- ✅ WHOIS (full registration data with contacts)
+- ✅ HTTP status and redirects
 - ✅ SSL certificate validation
 - ✅ robots.txt / sitemap.xml checks
-
-**Planned Checks:** 114+ (see PLANNED_CHECKS.md)
+- ✅ Active status detection
+- ✅ Redirect chain tracking
 
 **Next Milestones:**
-- v0.8: Check optimization with early bailout
-- v0.9: Redirect capture for domain discovery
-- v0.10: Task profile system
-- v1.x: Tier 1 checks (DNS, WHOIS deep dive)
-- v2.x: Tier 2 checks (security, content analysis)
+- v1.2: DNS deep dive checks
+- v1.3: SEO analysis profiles  
+- v2.x: Security and content analysis
 - v3.x: AI-powered intelligence
+
+See **[LAUNCH_PLAN.md](LAUNCH_PLAN.md)** for full roadmap.
 
 ---
 
@@ -140,6 +148,7 @@ Profiles are organized by **data source**, not scan depth:
 
 ### Usage Examples
 ```bash
+```bash
 # Just DNS data
 --profiles dns
 
@@ -150,6 +159,92 @@ Profiles are organized by **data source**, not scan depth:
 --profiles ssl,headers,security
 
 # Custom combination
+--profiles dns,http,ssl,seo
+```
+
+### Early Bailout Optimization
+DAGO automatically skips unregistered/inactive domains to save time:
+- **WHOIS check first**: If unregistered → skip all other checks
+- **HTTP check second**: If inactive → skip analysis checks
+- **Profile-aware**: Each profile defines which early bailout checks to run
+
+---
+
+## 🛠️ Local Development Setup
+
+### Prerequisites
+- **Python 3.9+**
+- **PostgreSQL 12+**
+- **Git**
+
+### Quick Setup
+
+```bash
+# Clone repository
+git clone https://github.com/Debesyla/dago-domenai.git
+cd dago-domenai
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On macOS/Linux
+# or
+.venv\Scripts\activate  # On Windows
+
+# Install dependencies
+pip install -r requirements.app.txt
+
+# Set up database
+./db/setup.sh
+# Or manually:
+# createdb domenai
+# psql domenai -f db/schema.sql
+
+# Configure
+cp config.yaml config.local.yaml
+# Edit config.local.yaml with your database credentials
+
+# Run tests
+pytest tests/unit/ -v
+
+# Test a scan
+python -m src.orchestrator --domain debesyla.lt --profiles quick-whois
+```
+
+### Development Tips
+
+**Running specific profiles:**
+```bash
+# Test quick-whois (fast, ~0.02s)
+python -m src.orchestrator --domain example.lt --profiles quick-whois
+
+# Test full whois (detailed, ~0.10s)  
+python -m src.orchestrator --domain example.lt --profiles whois
+
+# Test DNS resolution
+python -m src.orchestrator --domain example.lt --profiles dns
+```
+
+**Database queries:**
+```bash
+# Check scan results
+psql domenai -c "SELECT domain_name, is_registered, is_active FROM domains LIMIT 10;"
+
+# View profile usage
+psql domenai -c "SELECT name, profiles FROM tasks WHERE is_meta_profile = TRUE;"
+```
+
+**Monitoring scans:**
+```bash
+# Start background scan
+nohup python -m src.orchestrator domains.txt --profiles quick-check > logs/scan.log 2>&1 &
+
+# Monitor progress
+./monitor_scan.sh
+```
+
+For **production deployment**, see **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)**.
+
+---
 --profiles whois,dns,business,language
 ```
 
@@ -231,34 +326,48 @@ python3 -m src.orchestrator domains.txt --profiles dns,infrastructure
 **Project Structure:**
 ```
 src/
-  checks/          # Individual check modules
-  core/            # Schema definitions
-  utils/           # Config, logging, database
-  orchestrator.py  # Main coordination
-docs/              # All documentation
-db/migrations/     # Database migrations
+  checks/            # Individual check modules (whois, dns, http, ssl, etc.)
+  core/              # Schema definitions
+  profiles/          # Profile system (loader, schema)
+  utils/             # Config, logging, database, export
+  orchestrator.py    # Main coordination engine
+docs/                # All documentation
+db/                  # Database schema and setup
+tests/               # Unit and integration tests
 ```
 
 **Adding a New Check:**
-1. Review PLANNED_CHECKS.md to find your check
+1. Review `PLANNED_CHECKS.md` to find your check
 2. Determine which profile it belongs to (by data source)
-3. Implement check module in src/checks/
-4. Update TASK_MATRIX.md status (🔄 → ✅)
-5. Add check to profile definition in config.yaml
-6. Test profile works independently and with dependencies
-7. Document any new dependencies
+3. Implement check module in `src/checks/`
+4. Add check to profile configuration in `config.yaml`
+5. Update orchestrator mapping in `src/orchestrator.py`
+6. Write unit tests in `tests/unit/`
+7. Update `TASK_MATRIX.md` status (🔄 → ✅)
+
+**Adding a New Profile:**
+1. Define in `src/profiles/profile_schema.py`:
+   - Add to `ProfileType` enum
+   - Add dependencies to `PROFILE_DEPENDENCIES`
+   - Add metadata to `PROFILE_METADATA`
+2. Add check configuration to `config.yaml`
+3. Write tests in `tests/unit/test_profiles.py`
+4. Update `TASK_PROFILES.md` documentation
 
 ---
 
 ## 📞 Support
 
 For questions about:
-- **Usage** → Read [TASK_PROFILES.md](TASK_PROFILES.md)
-- **Development** → Read [LAUNCH_PLAN.md](LAUNCH_PLAN.md)
-- **Architecture** → Read design docs (V08, V09, V10)
-- **Setup** → Read [SETUP.md](SETUP.MD)
+- **Installation & Setup** → This README or [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- **Using Profiles** → [TASK_PROFILES.md](TASK_PROFILES.md) or [PROFILE_QUICK_REFERENCE.md](PROFILE_QUICK_REFERENCE.md)
+- **Technical Details** → [TASK_MATRIX.md](TASK_MATRIX.md)
+- **Roadmap** → [LAUNCH_PLAN.md](LAUNCH_PLAN.md)
+- **Planned Features** → [PLANNED_CHECKS.md](PLANNED_CHECKS.md)
 
 ---
 
-**Last Updated:** October 14, 2025  
-**Documentation Version:** 1.0
+**Last Updated:** October 18, 2025  
+**Version:** v1.1.1  
+**License:** MIT
+

@@ -206,7 +206,7 @@ Optimize Core Profile performance and prepare for v2.0 frontend.
 
 ### 📋 Tasks
 1. Performance optimization:
-   - Parallel execution of all 4 core profiles
+   - Parallel execution of all core profiles (5 in v1.1.1: quick-whois, whois, dns, http, ssl)
    - Connection pooling for HTTP requests
    - DNS query caching (TTL-aware)
    - Retry logic with exponential backoff
@@ -217,9 +217,9 @@ Optimize Core Profile performance and prepare for v2.0 frontend.
    - Rate limit detection and handling
 
 3. Add core meta profiles:
-   - `quick-check` - WHOIS + active detection only
-   - `standard` - All 4 core profiles (whois, dns, http, ssl)
-   - `monitor` - Lightweight recurring checks (http + ssl expiry)
+   - `quick-check` - quick-whois + active detection (v1.1.1: uses fast DAS protocol)
+   - `standard` - Core profiles (whois, dns, http, ssl)
+   - `monitor` - Lightweight recurring checks (quick-whois + http)
 
 4. Export and reporting:
    - JSON export with profile metadata
@@ -233,7 +233,7 @@ Optimize Core Profile performance and prepare for v2.0 frontend.
 
 ### 🧪 Validation
 - `--profiles standard` completes in < 5 seconds
-- All 4 core profiles working independently and in combination
+- All core profiles (5 in v1.1.1) working independently and in combination
 - Error handling robust across all scenarios
 - Export formats clean and usable
 

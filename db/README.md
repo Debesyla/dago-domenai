@@ -1,26 +1,75 @@
 # Database Setup
 
-Simple database initialization for dago-domenai v1.0.
+Database initialization and management for dago-domenai.
 
 ## Quick Start
 
-### First Time Setup
+### Automated Deployment (Part of deploy.sh)
 
+When running `./deploy.sh`, you'll be prompted for database setup:
 ```bash
-cd db
-./setup.sh
-# Choose option 1 to initialize fresh database
+./deploy.sh root@your-server.com /srv/dago-domenai
+# Answer "y" when asked about database setup
+# Provides database credentials
+# ✅ Schema applied automatically
 ```
 
-### Manual Setup
+**What it does:**
+- Tests database connection
+- Applies schema.sql
+- Shows basic summary
 
+**Use when:** First-time deployment or simple schema updates
+
+---
+
+### Interactive Management (db/setup.sh)
+
+For advanced database operations and local development:
 ```bash
-# Option 1: Using script
+cd /path/to/dago-domenai
 ./db/setup.sh
 
-# Option 2: Direct SQL
-psql $DATABASE_URL -f db/schema.sql
+# Interactive menu:
+# 1) Initialize fresh database (DESTRUCTIVE - drops all data)
+# 2) Verify existing database
+# 3) Show database statistics  
+# 4) Exit
 ```
+
+**What it does:**
+- Full database rebuild (drops & recreates)
+- Validation checks
+- Detailed statistics and analysis
+- Profile verification
+
+**Use when:** 
+- Local development setup
+- Troubleshooting database issues
+- Wanting detailed stats
+- Need to rebuild from scratch
+
+---
+
+## Comparison: deploy.sh vs db/setup.sh
+
+| Feature | deploy.sh | db/setup.sh |
+|---------|-----------|-------------|
+| **Purpose** | Automated deployment | Interactive management |
+| **Location** | Remote server (via SSH) | Local or on server |
+| **Prompts** | Inline credentials | Uses .env file |
+| **Database ops** | Apply schema only | Full CRUD + validation |
+| **Destructive** | No (safe) | Yes (option 1) |
+| **Statistics** | Basic summary | Detailed analysis |
+| **Best for** | First deployment | Development & troubleshooting |
+
+**TL;DR:**
+- **First deployment?** Use `deploy.sh` (answers "y" to database setup)
+- **Troubleshooting?** Use `db/setup.sh` (option 2 for verification)
+- **Fresh start?** Use `db/setup.sh` (option 1 to rebuild)
+- **Stats?** Use `db/setup.sh` (option 3)
+
+---
 
 ## Files
 

@@ -1,6 +1,15 @@
 # Task Profiles - User Guide
 
+**Version:** v1.1.1  
+**Last Updated:** October 18, 2025
+
 This guide explains the **composable profile system** where you can mix and match profiles to create custom scanning strategies.
+
+**🆕 v1.1.1 Highlights:**
+- New `quick-whois` profile: 5x faster than full WHOIS (0.02s vs 0.10s)
+- `quick-check` and `monitor` meta profiles now 12x faster (use quick-whois)
+- Dual WHOIS protocol support: DAS (fast) + WHOIS port 43 (detailed)
+- Bulk scanning now practical: 164,967 domains in ~9 hours
 
 ---
 
@@ -38,7 +47,7 @@ We have **4 categories** of profiles:
 
 ### 🔵 Core Data Profiles
 Extract raw data (make external API calls)
-- `whois` `dns` `http` `ssl`
+- `quick-whois` `whois` `dns` `http` `ssl`
 
 ### 🟢 Analysis Profiles  
 Process data from core profiles (no additional calls)
@@ -58,22 +67,65 @@ Pre-configured combos for common tasks
 
 These make the actual API calls to external services.
 
-### `whois`
-**What it does:** Queries WHOIS servers for registration information  
-**Duration:** 0.5-1 second  
+### `quick-whois`
+**What it does:** Fast registration check using DAS protocol (Domain Availability Service)  
+**Duration:** ~0.02 seconds  
+**Protocol:** Socket-based query to das.domreg.lt:4343  
+**Rate limit:** 4 queries/second (relaxed)  
 **Data returned:**
-- Registration status (registered vs available)
+- Registration status only (registered vs available)
+- Domain name
+
+**Use when:** 
+- Bulk filtering of large domain lists
+- Quick registration checks
+- Continuous monitoring
+- You don't need detailed registration data
+
+**Lithuanian domain (.lt) specific:** Uses DAS protocol from Lithuanian registry
+
+```bash
+python3 -m src.orchestrator domains.txt --profiles quick-whois
+```
+
+---
+
+### `whois`
+**What it does:** Full registration data using dual protocol (DAS + WHOIS port 43)  
+**Duration:** ~0.10 seconds  
+**Protocol:** DAS check first, then WHOIS query if registered  
+**Rate limit:** 100 queries per 30 minutes (strict IP-based blocking)  
+**Data returned:**
+- Everything from quick-whois, plus:
 - Registrar name and ID
 - Registration, expiration, updated dates
-- Registrant organization
+- Registrant organization and contacts
+- Admin and tech contacts
+- Nameserver list
 - Privacy protection status
 - Domain age
 
-**Use when:** You need ownership and registration info
+**Use when:** 
+- You need detailed ownership information
+- Contact research required
+- Compliance checks
+- Business intelligence
+
+**Note:** Automatically falls back to quick-whois data if rate limited
 
 ```bash
 python3 -m src.orchestrator domains.txt --profiles whois
 ```
+
+**WHOIS Protocol Comparison:**
+
+| Feature | quick-whois | whois |
+|---------|-------------|-------|
+| Speed | 0.02s | 0.10s (5x slower) |
+| Rate Limit | 4/sec | 100/30min |
+| Registration Status | ✅ | ✅ |
+| Detailed Data | ❌ | ✅ |
+| Best For | Filtering | Research |
 
 ---
 
@@ -333,25 +385,38 @@ python3 -m src.orchestrator domains.txt --profiles dns,ssl,whois,technology,fing
 
 Pre-configured combinations for common workflows.
 
-### `quick-check`
-**Composition:** `whois` + active detection  
-**Duration:** 1-2 seconds  
-**Purpose:** Fast filtering for bulk lists
+### `quick-check` ⚡
+**Composition:** `quick-whois` + `http`  
+**Duration:** 0.1-0.5 seconds (12x faster than v1.0)  
+**Purpose:** Ultra-fast filtering for bulk domain lists
 
-**Use case:** You have 10,000 domains and want to filter down to only registered, active ones.
+**Use case:** You have 100,000+ domains and want to filter down to only registered, active ones in minutes, not hours.
+
+**What it checks:**
+- Registration status (via quick-whois DAS protocol)
+- HTTP connectivity (is site accessible?)
+
+**Perfect for:**
+- Initial domain discovery and filtering
+- Continuous monitoring of large portfolios
+- Quick validation before deeper analysis
 
 ```bash
 python3 -m src.orchestrator all_domains.txt --profiles quick-check
 ```
+
+**Performance:** 164,967 domains in ~9 hours (5 domains/sec avg with early bailout)
 
 ---
 
 ### `standard`
 **Composition:** `whois` + `dns` + `http` + `ssl` + `seo`  
 **Duration:** 5-10 seconds  
-**Purpose:** General health check
+**Purpose:** Comprehensive general analysis with detailed registration data
 
-**Use case:** Standard analysis of curated domain list.
+**Use case:** Standard technical analysis of curated domain list where you need full WHOIS details.
+
+**Note:** Uses full `whois` profile (not quick-whois) to get complete registration data.
 
 ```bash
 python3 -m src.orchestrator my_domains.txt --profiles standard
@@ -398,15 +463,27 @@ python3 -m src.orchestrator priority_domains.txt --profiles complete
 
 ---
 
-### `monitor`
-**Composition:** Minimal change detection  
-**Duration:** 2-3 seconds  
-**Purpose:** Track changes over time
+### `monitor` 🔍
+**Composition:** `quick-whois` + `http`  
+**Duration:** 0.1-0.5 seconds  
+**Purpose:** Lightweight change detection for recurring scans
 
-**Use case:** Recurring scans to detect when things change.
+**Use case:** Daily/hourly monitoring of domain portfolio to detect:
+- Registration status changes
+- Site availability changes
+- Redirect changes
+
+**Why quick-whois:** Monitor uses the same fast protocol as quick-check since detailed WHOIS data rarely changes frequently.
 
 ```bash
+# Run daily to track changes
 python3 -m src.orchestrator monitored.txt --profiles monitor
+```
+
+**Tip:** Combine with cron for automated monitoring:
+```bash
+# Daily at 2 AM
+0 2 * * * cd /opt/dago && python3 -m src.orchestrator domains.txt --profiles monitor
 ```
 
 ---
@@ -573,13 +650,20 @@ Duration: ~60-120 seconds
 
 ### Batch Processing (1000 domains, 10 workers)
 
-| Profile Combo | Total Time | Per Domain |
-|---------------|------------|------------|
-| `quick-check` | 3-5 min | 1-2s |
-| `whois,dns` | 5-8 min | 2-3s |
-| `standard` | 15-20 min | 5-10s |
-| `technical-audit` | 1-2 hours | 15-30s |
-| `complete` | 4-5 hours | 60-120s |
+| Profile Combo | Total Time | Per Domain | Notes |
+|---------------|------------|------------|-------|
+| `quick-check` | 1-3 min | 0.1-0.2s | v1.1.1: 12x faster |
+| `monitor` | 1-3 min | 0.1-0.2s | Same as quick-check |
+| `quick-whois` | 0.5-1 min | 0.02s | DAS only |
+| `whois,dns` | 5-8 min | 2-3s | Full WHOIS data |
+| `standard` | 15-20 min | 5-10s | Comprehensive |
+| `technical-audit` | 1-2 hours | 15-30s | Deep technical |
+| `complete` | 4-5 hours | 60-120s | Everything |
+
+**v1.1.1 Performance Improvements:**
+- `quick-check` and `monitor` now **12x faster** (uses quick-whois)
+- Large-scale filtering is now practical: 164,967 domains in ~9 hours
+- Early bailout reduces actual queries by ~60% (unregistered domains skipped)
 
 ---
 
@@ -714,47 +798,76 @@ A: `clustering` needs data from other profiles first:
 
 ## 🎓 Best Practices
 
-### 1. Start Small, Build Up
+### 1. Choose the Right WHOIS Profile
+```bash
+# Use quick-whois for bulk filtering (fast, 4 queries/sec)
+--profiles quick-whois
+
+# Use full whois for detailed research (slow, 100 queries/30min)
+--profiles whois
+
+# Meta profiles do this for you:
+--profiles quick-check    # Uses quick-whois (fast filtering)
+--profiles standard       # Uses full whois (detailed data)
+```
+
+### 2. Start Small, Build Up
 ```bash
 # Don't jump to complete immediately
 # Start with core data profiles, add as needed
 
---profiles dns              # Just DNS
---profiles dns,infrastructure  # Add hosting info
---profiles dns,infrastructure,technology  # Add tech stack
+--profiles dns                          # Just DNS
+--profiles dns,infrastructure           # Add hosting info
+--profiles dns,infrastructure,technology # Add tech stack
 ```
 
-### 2. Understand Dependencies
+### 3. Understand Dependencies
 ```bash
 # These work independently (core profiles):
+--profiles quick-whois
 --profiles whois
 --profiles dns
 --profiles http
 --profiles ssl
 
 # These need dependencies (analysis profiles):
---profiles http,headers     # headers needs http
---profiles http,content,technology  # technology needs both
+--profiles http,headers                 # headers needs http
+--profiles http,content,technology      # technology needs both
 ```
 
-### 3. Use Meta Profiles for Common Tasks
+### 4. Use Meta Profiles for Common Tasks
 ```bash
 # Instead of remembering combinations, use meta profiles:
---profiles standard          # For general analysis
---profiles technical-audit   # For security/infrastructure
---profiles business-research # For market intelligence
+--profiles quick-check       # Fast filtering (v1.1.1: 12x faster!)
+--profiles monitor           # Change detection
+--profiles standard          # General analysis
+--profiles technical-audit   # Security/infrastructure
+--profiles business-research # Market intelligence
 ```
 
-### 4. Profile for Performance
+### 5. Profile for Performance
 ```bash
-# For 10,000 domains, use quick-check first:
+# For 100,000+ domains, use quick-check first (v1.1.1 optimization):
 --profiles quick-check
+# Result: Filtered to ~30,000 active domains in hours, not days
 
-# Then only analyze the ~3,000 active ones:
+# Then only analyze the active ones with detailed scans:
 --profiles standard
 ```
 
-### 5. Combine for Custom Analysis
+### 6. Respect Rate Limits
+```bash
+# quick-whois: 4 queries/sec - Safe for bulk scanning
+--profiles quick-whois
+
+# full whois: 100 queries/30min - Use sparingly!
+--profiles whois
+# Tip: Run at night, use small batches, or space out scans
+
+# The system auto-handles rate limiting with graceful degradation
+```
+
+### 7. Combine for Custom Analysis
 ```bash
 # Need DNS + business info only?
 --profiles dns,whois,business
@@ -765,4 +878,21 @@ A: `clustering` needs data from other profiles first:
 
 ---
 
+## 📚 Additional Resources
+
+- **[PROFILE_QUICK_REFERENCE.md](PROFILE_QUICK_REFERENCE.md)** - Quick reference card
+- **[TASK_MATRIX.md](TASK_MATRIX.md)** - Complete check-to-profile mappings
+- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[README.md](README.md)** - Project overview
+
+---
+
 **Remember:** Profiles are **composable**. Mix and match to create exactly the analysis you need, without wasting time on checks you don't care about. 🎯
+
+**v1.1.1 Pro Tip:** Start with `quick-check` for bulk filtering, then use `standard` or custom profiles for detailed analysis. The dual WHOIS system gives you both speed and depth!
+
+---
+
+**Last Updated:** October 18, 2025  
+**Version:** v1.1.1  
+**License:** MIT
