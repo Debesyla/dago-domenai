@@ -75,44 +75,275 @@ git tag v1.1
 
 ---
 
-## 🟣 Version 1.2 — HTTP Profile
+## 🟣 Version 1.2 — Quick HTTP Profile (Bulk Scan Optimization)
 
 ### 🎯 Goal
-Enhance HTTP connectivity checks with full redirect analysis and performance metrics.
+Enable ultra-fast bulk scanning of 150k+ domains by splitting HTTP checks into quick and detailed variants. This mirrors the successful `quick-whois` pattern from v1.1.1, optimizing the two-phase scanning workflow:
+1. **Phase 1**: `quick-check` (quick-whois + quick-http) → Filter to registered + active domains
+2. **Phase 2**: Detailed profiles on filtered subset → Much smaller dataset, can afford slower checks
+
+### 📋 Strategy
+**Split HTTP checks by purpose:**
+- **`quick-http` profile**: HTTP HEAD requests only, 2s timeout, fast filtering (is domain active?)
+- **`http` profile**: Full GET requests, 10s timeout, complete analysis (redirects, content, headers)
+
+**Performance Impact:**
+- Current `quick-check`: ~10-30s per domain (GET requests with 10s timeout)
+- New `quick-check`: ~0.5-2s per domain (HEAD requests with 2s timeout)
+- **For 150k domains**: ~40 hours → **2-4 hours** (10-20x faster!)
 
 ### 📋 Tasks
-1. Expand `checks/http_check.py` (building on v0.4-0.5):
-   - ✅ HTTP status code (already working)
-   - ✅ Redirect chain (from v0.5)
-   - Response time measurement
-   - HTTPS availability check
-   - HTTP/2 or HTTP/3 support detection
-   - Compression support (gzip, brotli)
-   - Response size
-   - Final URL after redirects
-   - Detect redirect loops
-   - Mobile redirect detection (user-agent based)
 
-2. Add HTTP behavior analysis:
-   - Identify redirect type (301 permanent vs 302 temporary)
-   - Detect forced HTTPS upgrades
-   - Check for domain parking pages
-   - Measure Time to First Byte (TTFB)
+#### 1. Create `quick-http` profile
+**File**: `src/checks/quick_http_check.py` (new file)
 
-3. Update `http` profile in `config.yaml`:
-   - All 10 HTTP checks marked as implemented
+**Implementation:**
+- HTTP HEAD request only (no body download)
+- 2-second aggressive timeout (fail-fast for dead domains)
+- HTTPS first, fallback to HTTP
+- Connection pooling and DNS caching
+- Early exit on first successful response
 
-### 🧪 Validation
-- `--profiles http` returns full connectivity data
-- Redirect chains tracked accurately
-- Performance metrics captured
-- Handles timeouts and connection errors
+**Returns minimal viable data:**
+```python
+{
+    "status": "active",           # or "inactive"
+    "http_status": 200,           # HTTP status code
+    "protocol": "https",          # which protocol worked
+    "final_url": "https://www.example.lt",  # after redirects
+    "redirect_count": 1,          # number of redirects
+    "response_time_ms": 150       # response time
+}
+```
+
+**Configuration** (`config.yaml`):
+```yaml
+checks:
+  quick-http:
+    enabled: true
+    timeout: 2.0              # Aggressive 2-second timeout
+    connect_timeout: 1.0      # 1 second to establish connection
+    sock_read_timeout: 0.5    # 0.5 seconds to read headers
+    max_redirects: 5          # Limit redirect chains
+    protocols: ['https', 'http']  # Try HTTPS first
+```
+
+#### 2. Update database schema
+**File**: `db/schema.sql`
+
+**Add tracking columns to `domains` table:**
+```sql
+-- Activity tracking (similar to is_registered from v1.1)
+ALTER TABLE domains ADD COLUMN is_active_source VARCHAR(50);
+ALTER TABLE domains ADD COLUMN is_active_updated_at TIMESTAMP;
+
+-- Index for fast filtering
+CREATE INDEX idx_domains_is_active ON domains(is_active);
+CREATE INDEX idx_domains_active_registered ON domains(is_active, is_registered);
+```
+
+**Purpose:**
+- `is_active`: Boolean flag set by `quick-http` (already exists)
+- `is_active_source`: Track which check set the flag ('quick-http', 'http', 'manual')
+- `is_active_updated_at`: Timestamp for activity verification age
+
+**Update `domain_results` JSONB schema:**
+- Add `quick-http` check data structure
+- Store HEAD request results separately from GET request results
+
+#### 3. Update full `http` profile
+**File**: `src/checks/http_check.py` (existing file)
+
+**Changes:**
+- Switch from HEAD to **GET requests** for complete analysis
+- Keep 10-second timeout for detailed checks
+- Add content analysis (size, compression, etc.)
+- Expand redirect chain tracking
+- Add performance metrics
+
+**Enhanced data returned:**
+```python
+{
+    "status": "active",
+    "http_status": 200,
+    "protocol": "https",
+    "final_url": "https://www.example.lt",
+    "redirect_count": 1,
+    "redirect_chain": [...],     # Full redirect history
+    "response_time_ms": 350,
+    "content_length": 45231,     # Body size
+    "compression": "gzip",       # Compression type
+    "server": "nginx/1.18.0",    # Server header
+    "http_version": "HTTP/2",    # Protocol version
+    "ttfb_ms": 120,             # Time to first byte
+}
+```
+
+#### 4. Update profile system
+**File**: `src/profiles/profile_schema.py`
+
+**Add `quick-http` to core profiles:**
+```python
+PROFILE_DEPENDENCIES = {
+    # Core profiles (make external API calls)
+    'quick-http': [],  # New: Fast HTTP HEAD check
+    'http': [],        # Updated: Full HTTP GET analysis
+    
+    # Meta profiles (expand to other profiles)
+    'quick-check': ['quick-whois', 'quick-http'],  # Updated
+    'standard': ['whois', 'dns', 'http', 'ssl', 'seo'],  # Uses full http
+}
+
+PROFILE_METADATA = {
+    'quick-http': {
+        'category': ProfileCategory.CORE,
+        'description': 'Fast HTTP connectivity check (HEAD request only)',
+        'data_source': 'HTTP/HTTPS HEAD requests',
+        'api_calls': 2,  # HTTPS + HTTP fallback
+        'duration_estimate': '0.5-2s',
+        'rate_limit': None,
+        'use_cases': [
+            'Bulk domain filtering',
+            'Active/inactive classification',
+            'Quick connectivity verification'
+        ],
+    },
+    'http': {
+        'category': ProfileCategory.CORE,
+        'description': 'Complete HTTP analysis with content inspection',
+        'data_source': 'HTTP/HTTPS GET requests',
+        'api_calls': 2,
+        'duration_estimate': '2-10s',
+        'rate_limit': None,
+        'use_cases': [
+            'Detailed redirect analysis',
+            'Performance metrics',
+            'Content and header inspection'
+        ],
+    },
+}
+```
+
+#### 5. Enable early bailout optimization
+**File**: `src/orchestrator.py`
+
+**Add inactive domain filtering:**
+```python
+def determine_checks_to_run(self, domain_obj, profiles):
+    """Determine which checks to run based on domain state."""
+    
+    # Early bailout: unregistered domains (v1.1)
+    if not domain_obj.is_registered:
+        return ['whois']  # Only try registration check
+    
+    # Early bailout: inactive domains (v1.2 NEW)
+    if not domain_obj.is_active and self.requires_active_site(profiles):
+        return []  # Skip content-based checks
+    
+    # Full check suite
+    return self.expand_profiles(profiles)
+
+def requires_active_site(self, profiles):
+    """Check if profiles require active website."""
+    content_profiles = ['seo', 'content', 'headers', 'robots', 'sitemap']
+    return any(p in content_profiles for p in profiles)
+```
+
+**Benefits:**
+- Unregistered domains: Skip all checks (v1.1)
+- Inactive domains: Skip content checks (v1.2)
+- Massive time savings on large datasets
+
+#### 6. Configuration updates
+**File**: `config.yaml`
+
+**Add profile-specific settings:**
+```yaml
+# Network configuration with profile overrides
+network:
+  default_timeout: 10
+  request_timeout: 10  # Default for full http profile
+  
+profiles:
+  quick-http:
+    enabled: true
+    checks:
+      - connectivity_status  # HEAD request only
+      
+  http:
+    enabled: true
+    checks:
+      - connectivity_status  # GET request with full analysis
+      - redirect_chain
+      - performance_metrics
+      - content_analysis
+```
+
+### 🧪 Validation Criteria
+
+**Quick-HTTP Profile:**
+- `--profiles quick-http` completes in <2s per domain
+- Sets `is_active` flag correctly (true/false)
+- Returns minimal data (status, protocol, http_status, final_url)
+- Fails fast on dead domains (2s timeout)
+- Tracks data source in `is_active_source`
+
+**Full HTTP Profile:**
+- `--profiles http` uses GET requests (not HEAD)
+- Returns complete analysis data
+- Handles 10s timeout for slow servers
+- Can override `is_active` if quick-http had false negative
+
+**Quick-Check Meta Profile:**
+- `--profiles quick-check` runs both `quick-whois` + `quick-http`
+- Completes in ~2-3s per domain (both checks combined)
+- Sets both `is_registered` and `is_active` flags
+- Enables early bailout for subsequent profiles
+
+**Orchestrator Early Bailout:**
+- Inactive domains skip content-based checks
+- Manual override capability (set `is_active_source='manual'`)
+- Proper filtering in database queries
+
+**Performance Benchmarks:**
+- 150k domains with `quick-check`: <4 hours (vs ~40 hours previously)
+- 80k filtered active domains with `standard`: ~10-15 hours
+- Total two-phase scan: <20 hours (vs >60 hours single-phase)
+
+### 📦 Migration Notes
+
+**Database migration:**
+```sql
+-- Add new columns
+ALTER TABLE domains 
+  ADD COLUMN is_active_source VARCHAR(50),
+  ADD COLUMN is_active_updated_at TIMESTAMP;
+
+-- Create indexes
+CREATE INDEX idx_domains_is_active ON domains(is_active);
+CREATE INDEX idx_domains_active_registered ON domains(is_active, is_registered);
+
+-- Backfill existing data (set source for existing is_active flags)
+UPDATE domains 
+SET is_active_source = 'legacy',
+    is_active_updated_at = updated_at
+WHERE is_active IS NOT NULL;
+```
 
 ### 📦 Tag
 ```bash
-git commit -m "v1.2 - complete HTTP profile implementation"
+git commit -m "v1.2 - quick-http profile for bulk scan optimization"
 git tag v1.2
 ```
+
+### 📄 Future Enhancements (Post-v1.2)
+
+**Potential improvements:**
+- TCP port pre-check (80/443 open before HTTP request)
+- Parallel protocol checking (HTTP + HTTPS simultaneously)
+- Response caching for repeated checks
+- Adaptive timeout based on historical performance
+- Manual domain re-verification workflow
 
 ---
 
