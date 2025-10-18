@@ -17,13 +17,13 @@ After completing each step, commit, test, and tag before moving forward.
 
 ---
 
-## 🔵 PHASE 1: Core Data Profiles (MVP)
+## ✅ COMPLETED: PHASE 1: Core Data Profiles (MVP)
 
 These versions complete the **Core Data** layer - the foundation that makes external API calls.
 
 ---
 
-## 🟣 Version 1.1 — WHOIS Profile (Complete)
+## ✅ COMPLETED: Version 1.1 — WHOIS Profile
 
 ### 🎯 Goal
 Add detailed WHOIS data retrieval using dual protocol approach (DAS + WHOIS port 43).
@@ -43,7 +43,7 @@ This maintains fast bulk scanning while getting detailed data where needed.
    - Rate limiting: 100 queries per 30 minutes (token bucket)
    
 2. **Integrate dual protocol flow**:
-   - ✅ DAS check first (already working from v0.8) - fast filtering
+   - DAS check first (already working from v0.8) - fast filtering
    - NEW: WHOIS query for registered domains only
    - Graceful degradation if rate limited (return DAS-only data)
    
@@ -75,7 +75,7 @@ git tag v1.1
 
 ---
 
-## 🟣 Version 1.2 — DNS Profile (Complete)
+## 🟣 Version 1.2 — DNS Profile
 
 ### 🎯 Goal
 Implement comprehensive DNS resolution covering all record types.
@@ -115,7 +115,7 @@ git tag v1.2
 
 ---
 
-## 🟣 Version 1.3 — HTTP Profile (Complete)
+## 🟣 Version 1.3 — HTTP Profile
 
 ### 🎯 Goal
 Enhance HTTP connectivity checks with full redirect analysis and performance metrics.
@@ -156,7 +156,7 @@ git tag v1.3
 
 ---
 
-## 🟣 Version 1.4 — SSL Profile (Complete)
+## 🟣 Version 1.4 — SSL Profile
 
 ### 🎯 Goal
 Implement comprehensive SSL/TLS certificate analysis and security checks.
@@ -544,7 +544,7 @@ git tag v3.3
 
 ---
 
-## 🟣 Version 3.4 — SEO Profile (Complete)
+## 🟣 Version 3.4 — SEO Profile
 
 ### 🎯 Goal
 Complete all SEO-related checks.
