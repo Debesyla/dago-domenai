@@ -37,35 +37,35 @@ This maintains fast bulk scanning while getting detailed data where needed.
 
 ### 📋 Tasks
 1. **Implement WHOISClient class** in `checks/whois_check.py`:
-   - Add standard WHOIS protocol client (port 43)
-   - Parse .lt WHOIS response format
-   - Extract: registrar, registration date, expiration date, nameservers
-   - Rate limiting: 100 queries per 30 minutes (token bucket)
+   - ✅ Add standard WHOIS protocol client (port 43)
+   - ✅ Parse .lt WHOIS response format
+   - ✅ Extract: registrar, registration date, expiration date, nameservers
+   - ✅ Rate limiting: 100 queries per 30 minutes (token bucket)
    
 2. **Integrate dual protocol flow**:
-   - DAS check first (already working from v0.8) - fast filtering
-   - NEW: WHOIS query for registered domains only
-   - Graceful degradation if rate limited (return DAS-only data)
+   - ✅ DAS check first (already working from v0.8) - fast filtering
+   - ✅ NEW: WHOIS query for registered domains only
+   - ✅ Graceful degradation if rate limited (return DAS-only data)
    
 3. **Data extraction** from WHOIS response:
-   - Registrar name (no need to save contact)
-   - Registration date
-   - Expiration date  
-   - Nameservers
-   - Domain age calculation (from registration date)
-   - Privacy protection detection (when registrant data absent)
+   - ✅ Registrar name (no need to save contact)
+   - ✅ Registration date
+   - ✅ Expiration date  
+   - ✅ Nameservers
+   - ✅ Domain age calculation (from registration date)
+   - ✅ Privacy protection detection (when registrant data absent)
 
 4. **Update `whois` profile** in `config.yaml`:
-   - Mark WHOIS checks as implemented
-   - Add WHOIS rate limit configuration
+   - ✅ Mark WHOIS checks as implemented
+   - ✅ Add WHOIS rate limit configuration
 
 ### 🧪 Validation
-- `--profiles whois` returns complete registration data for registered domains
-- Correctly parses: registrar, dates, nameservers
-- Domain age calculated accurately
-- Rate limiting prevents IP blocking
-- Handles rate limit gracefully (returns partial data)
-- Fast bulk scanning maintained (DAS for unregistered)
+- ✅ `--profiles whois` returns complete registration data for registered domains
+- ✅ Correctly parses: registrar, dates, nameservers
+- ✅ Domain age calculated accurately
+- ✅ Rate limiting prevents IP blocking
+- ✅ Handles rate limit gracefully (returns partial data)
+- ✅ Fast bulk scanning maintained (DAS for unregistered)
 
 ### 📦 Tag
 ```bash
