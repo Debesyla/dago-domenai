@@ -75,47 +75,7 @@ git tag v1.1
 
 ---
 
-## 🟣 Version 1.2 — DNS Profile
-
-### 🎯 Goal
-Implement comprehensive DNS resolution covering all record types.
-
-### 📋 Tasks
-1. Implement full `checks/dns_check.py`:
-   - A records (IPv4 addresses)
-   - AAAA records (IPv6 addresses)
-   - MX records (mail servers)
-   - NS records (nameservers)
-   - TXT records (SPF, DKIM, verification tokens)
-   - CNAME records
-   - SOA record (Start of Authority)
-   - DNS propagation check (query multiple DNS servers)
-   - DNSSEC validation
-
-2. Add DNS analysis:
-   - Identify DNS provider (Cloudflare, Route53, etc.)
-   - Detect DNS-based CDN usage
-   - Check for missing critical records (MX for business domains)
-   - Validate SPF/DKIM configuration
-
-3. Update `dns` profile in `config.yaml`:
-   - All 11 DNS checks marked as implemented
-
-### 🧪 Validation
-- `--profiles dns` returns all DNS record types
-- Single DNS query retrieves all records efficiently
-- Correctly identifies DNS provider
-- Handles DNS timeouts and NXDOMAIN gracefully
-
-### 📦 Tag
-```bash
-git commit -m "v1.2 - complete DNS profile implementation"
-git tag v1.2
-```
-
----
-
-## 🟣 Version 1.3 — HTTP Profile
+## 🟣 Version 1.2 — HTTP Profile
 
 ### 🎯 Goal
 Enhance HTTP connectivity checks with full redirect analysis and performance metrics.
@@ -150,7 +110,47 @@ Enhance HTTP connectivity checks with full redirect analysis and performance met
 
 ### 📦 Tag
 ```bash
-git commit -m "v1.3 - complete HTTP profile implementation"
+git commit -m "v1.2 - complete HTTP profile implementation"
+git tag v1.2
+```
+
+---
+
+## 🟣 Version 1.3 — DNS Profile
+
+### 🎯 Goal
+Implement comprehensive DNS resolution covering all record types.
+
+### 📋 Tasks
+1. Implement full `checks/dns_check.py`:
+   - A records (IPv4 addresses)
+   - AAAA records (IPv6 addresses)
+   - MX records (mail servers)
+   - NS records (nameservers)
+   - TXT records (SPF, DKIM, verification tokens)
+   - CNAME records
+   - SOA record (Start of Authority)
+   - DNS propagation check (query multiple DNS servers)
+   - DNSSEC validation
+
+2. Add DNS analysis:
+   - Identify DNS provider (Cloudflare, Route53, etc.)
+   - Detect DNS-based CDN usage
+   - Check for missing critical records (MX for business domains)
+   - Validate SPF/DKIM configuration
+
+3. Update `dns` profile in `config.yaml`:
+   - All 11 DNS checks marked as implemented
+
+### 🧪 Validation
+- `--profiles dns` returns all DNS record types
+- Single DNS query retrieves all records efficiently
+- Correctly identifies DNS provider
+- Handles DNS timeouts and NXDOMAIN gracefully
+
+### 📦 Tag
+```bash
+git commit -m "v1.3 - complete DNS profile implementation"
 git tag v1.3
 ```
 
