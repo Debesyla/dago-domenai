@@ -206,18 +206,20 @@ GROUP BY
 ORDER BY occurrences DESC;
 
 -- ============================================================================
--- META PROFILES DATA (v0.10)
+-- META PROFILES DATA (v0.10, updated for v1.1.1)
 -- ============================================================================
 
 -- Insert meta profiles (run only once, uses ON CONFLICT to prevent duplicates)
 INSERT INTO tasks (name, description, task_type, profiles, is_meta_profile) VALUES
-    ('quick-check', 'Fast filtering - registration + connectivity', 'meta', ARRAY['whois', 'http'], TRUE),
+    ('quick-check', 'Fast filtering - registration + connectivity (v1.1.1: uses quick-whois)', 'meta', ARRAY['quick-whois', 'http'], TRUE),
     ('standard', 'General analysis - core profiles + seo', 'meta', ARRAY['whois', 'dns', 'http', 'ssl', 'seo'], TRUE),
     ('technical-audit', 'Security and infrastructure focus', 'meta', ARRAY['whois', 'dns', 'http', 'ssl', 'headers', 'security', 'infrastructure', 'technology'], TRUE),
     ('business-research', 'Market intelligence', 'meta', ARRAY['whois', 'dns', 'http', 'ssl', 'business', 'language', 'clustering'], TRUE),
     ('complete', 'Comprehensive analysis - all checks', 'meta', ARRAY['whois', 'dns', 'http', 'ssl', 'headers', 'content', 'infrastructure', 'technology', 'seo', 'security', 'compliance', 'business', 'language'], TRUE),
-    ('monitor', 'Change detection - minimal recurring', 'meta', ARRAY['whois', 'http'], TRUE)
-ON CONFLICT (name) DO NOTHING;
+    ('monitor', 'Change detection - minimal recurring (v1.1.1: uses quick-whois)', 'meta', ARRAY['quick-whois', 'http'], TRUE)
+ON CONFLICT (name) DO UPDATE SET
+    profiles = EXCLUDED.profiles,
+    description = EXCLUDED.description;
 
 -- ============================================================================
 -- NOTES
